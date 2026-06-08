@@ -1,0 +1,8 @@
+---
+features:
+  - |
+    Adds libvirt stale mount monitoring through the ``node-exporter`` text file
+    collector and introduces ``LibvirtPodRestarts``,
+    ``LibvirtCephStaleMounts``, and ``LibvirtCephStaleMountsHigh`` alerts to
+    detect repeated libvirt restarts and duplicate Ceph-related bind mounts
+    before they affect host responsiveness.

@@ -70,6 +70,13 @@ _kube_prometheus_stack_helm_values:
           target_matchers:
             - alertname = "CoreDNSLowErrorBudgetBurn"
         - source_matchers:
+            - alertname = "LibvirtCephStaleMountsHigh"
+          target_matchers:
+            - alertname = "LibvirtCephStaleMounts"
+          equal:
+            - instance
+            - job
+        - source_matchers:
             - alertname = "SmartctlDiskUnhealthy"
           target_matchers:
             - alertname =~ "SmartctlDisk(CriticalWarning|AvailableSpareLow|WearoutCritical|WearoutWarning|PendingSectorsGrowing|UncorrectableSectorsGrowing|MediaErrorsGrowing|ReallocatedSectorsGrowing|TemperatureHigh|SelfTestFailed|AttributeFailing|ScsiUncorrectedErrors|ScsiGrownDefectsGrowing)"
@@ -711,6 +718,7 @@ _kube_prometheus_stack_helm_values:
       - --collector.processes
       - --collector.systemd
       - --collector.stat.softirq
+      - --collector.textfile.directory=/run/prometheus
       - --web.config.file=/config/node-exporter.yml
     configmaps:
       - name: kube-prometheus-stack-node-exporter
@@ -743,9 +751,68 @@ _kube_prometheus_stack_helm_values:
         volumeMounts:
           - name: kube-prometheus-stack-node-exporter
             mountPath: /config
+      - name: mountinfo-textfile-collector
+        image: "{{ atmosphere_images['local_path_provisioner_helper'] }}"
+        volumeMounts:
+          - name: proc
+            mountPath: /host/proc
+            readOnly: true
+        command:
+          - /bin/sh
+          - -ec
+          - |-
+            while true; do
+              tmp="/run/prometheus/libvirt-mounts.prom.$$"
+              awk '
+                function suspicious(target) {
+                  return target ~ /^\/etc\/ceph(\/|$)/ ||
+                    target ~ /^\/var\/lib\/kubelet\/pods\/[^\/]+\/volumes\/kubernetes\.io~host-path\/etcceph(\/|$)/ ||
+                    target ~ /^\/var\/lib\/kubelet\/pods\/[^\/]+\/volume-subpaths\/(ceph-etc|ceph-keyring|ceph-admin-keyring|external-ceph-keyring|ceph-keyring-[^\/]+)(\/|$)/
+                }
+                {
+                  total++
+                  target = $5
+                  if (suspicious(target)) {
+                    count[target]++
+                  }
+                }
+                END {
+                  duplicate = 0
+                  max = 0
+                  targets = 0
+                  for (target in count) {
+                    targets++
+                    if (count[target] > max) {
+                      max = count[target]
+                    }
+                    if (count[target] > 1) {
+                      duplicate += count[target] - 1
+                    }
+                  }
+                  print "# HELP node_libvirt_ceph_mount_duplicate_entries Number of extra duplicate libvirt Ceph-related mountinfo entries."
+                  print "# TYPE node_libvirt_ceph_mount_duplicate_entries gauge"
+                  print "node_libvirt_ceph_mount_duplicate_entries " duplicate
+                  print "# HELP node_libvirt_ceph_mount_max_duplicates Maximum mountinfo entries seen for a single libvirt Ceph-related mount target."
+                  print "# TYPE node_libvirt_ceph_mount_max_duplicates gauge"
+                  print "node_libvirt_ceph_mount_max_duplicates " max
+                  print "# HELP node_libvirt_ceph_mount_targets Number of libvirt Ceph-related mount targets seen in mountinfo."
+                  print "# TYPE node_libvirt_ceph_mount_targets gauge"
+                  print "node_libvirt_ceph_mount_targets " targets
+                  print "# HELP node_mountinfo_entries Number of entries in /proc/1/mountinfo."
+                  print "# TYPE node_mountinfo_entries gauge"
+                  print "node_mountinfo_entries " total
+                }
+              ' /host/proc/1/mountinfo > "${tmp}"
+              mv "${tmp}" /run/prometheus/libvirt-mounts.prom
+              sleep 60
+            done
     sidecarVolumeMount:
       - name: certs
         mountPath: /certs
+        readOnly: false
+      - name: node-exporter-textfiles
+        mountPath: /run/prometheus
+        readOnly: false
     livenessProbe:
       httpGet:
         scheme: https

@@ -1057,6 +1057,157 @@ intervention and may precede a crash.
 5. If the error recurs, schedule hardware maintenance and replace the
    affected CPU or motherboard as needed.
 
+``LibvirtCephStaleMounts``
+==========================
+
+This alert fires when the node-exporter text file collector reports more than
+100 duplicate libvirt/Ceph-related mount entries on a node for at least
+30 minutes. It's an early warning that stale bind mounts are accumulating in
+the host mount namespace.
+
+**Likely Root Causes**
+
+- Repeated libvirt pod restarts while ``/etc/ceph`` uses bidirectional mount
+  propagation.
+- Kubernetes ``subPath`` bind mounts for Ceph configuration or keyring files left
+  behind after pod recreation.
+- A libvirt chart version that mounts hostPath-backed ``/etc/ceph`` with
+  ``Bidirectional`` propagation.
+
+**Diagnostic and Remediation Steps**
+
+1. Check the current duplicate mount count and maximum duplicates per target:
+
+   .. code-block:: console
+
+     kubectl -n monitoring exec svc/kube-prometheus-stack-prometheus -- \
+       promtool query instant http://localhost:9090 \
+       'node_libvirt_ceph_mount_duplicate_entries{instance="<node>"}'
+
+     kubectl -n monitoring exec svc/kube-prometheus-stack-prometheus -- \
+       promtool query instant http://localhost:9090 \
+       'node_libvirt_ceph_mount_max_duplicates{instance="<node>"}'
+
+2. Check whether the libvirt pod has restarted recently:
+
+   .. code-block:: console
+
+     kubectl -n openstack get pods -o wide | grep libvirt
+     kubectl -n openstack describe pod <libvirt-pod>
+
+3. On the affected node, inspect duplicate libvirt/Ceph mount targets:
+
+   .. code-block:: console
+
+     awk '{print $5}' /proc/1/mountinfo \
+       | grep -E '(/etc/ceph|/var/lib/kubelet/pods/.*/(etcceph|volume-subpaths/(ceph-etc|ceph-keyring|ceph-admin-keyring)))' \
+       | sort | uniq -c | sort -nr | head
+
+4. If the count is still growing, avoid repeated force deletion of the libvirt
+   pod until you deploy the mount propagation fix. Repeated restarts can make
+   the mount buildup worse on affected versions.
+
+5. If you must clean up mounts, first disable scheduling to the affected Nova
+   compute service, then remove only stale libvirt/Ceph bind mounts on the
+   host. Recreate the libvirt pod after cleanup and verify ``virsh`` works
+   before re-enabling the compute service. Don't restart virtual machine
+   processes as part of the cleanup.
+
+``LibvirtCephStaleMountsHigh``
+==============================
+
+This alert fires when the node-exporter text file collector reports more than
+1000 duplicate libvirt/Ceph-related mount entries on a node for at least
+10 minutes. At this level, host processes that scan the mount table can consume
+elevated CPU and the node may become less responsive.
+
+**Likely Root Causes**
+
+- The same causes as ``LibvirtCephStaleMounts``, with a larger stale mount
+  buildup.
+- Repeated libvirt pod deletion or restart attempts while stale mounts remain
+  present.
+
+**Diagnostic and Remediation Steps**
+
+1. Treat this as user-impacting for virtual machines on the affected compute node
+   and verify Nova service state:
+
+   .. code-block:: console
+
+     openstack compute service list --service nova-compute --host <compute-host>
+
+2. Confirm the stale mount count:
+
+   .. code-block:: console
+
+     kubectl -n monitoring exec svc/kube-prometheus-stack-prometheus -- \
+       promtool query instant http://localhost:9090 \
+       'node_libvirt_ceph_mount_duplicate_entries{instance="<node>"}'
+
+3. Temporarily disable scheduling to the affected compute service before
+   cleanup:
+
+   .. code-block:: console
+
+     openstack compute service set --disable <compute-host> nova-compute
+
+4. Clean only stale libvirt/Ceph bind mounts from the host mount namespace,
+   recreate the libvirt pod, and verify libvirt health:
+
+   .. code-block:: console
+
+     kubectl -n openstack get pods -o wide | grep libvirt
+     virsh -c qemu:///system list
+
+5. Re-enable the compute service only after the stale mount metric returns to
+   normal and libvirt connectivity is healthy.
+
+``LibvirtPodRestarts``
+======================
+
+This alert fires when a libvirt pod's main container restarts more than three
+times on the same node within one hour and the condition remains true for
+15 minutes. Repeated libvirt restarts are an early signal for the stale mount
+leak because each restart can recreate Ceph ``subPath`` bind mounts.
+
+**Likely Root Causes**
+
+- libvirt liveness or readiness checks failing.
+- libvirt crashing because of host resource pressure or configuration errors.
+- TLS, Ceph, or RBD configuration preventing libvirt from becoming healthy.
+- Manual force deletion or repeated pod recreation during troubleshooting.
+
+**Diagnostic and Remediation Steps**
+
+1. Identify the affected node and libvirt pod:
+
+   .. code-block:: console
+
+     kubectl -n openstack get pods -o wide | grep libvirt
+
+2. Inspect recent restarts and events:
+
+   .. code-block:: console
+
+     kubectl -n openstack describe pod <libvirt-pod>
+     kubectl -n openstack logs <libvirt-pod> -c libvirt --previous --tail=200
+
+3. Check whether stale mounts have started accumulating:
+
+   .. code-block:: console
+
+     kubectl -n monitoring exec svc/kube-prometheus-stack-prometheus -- \
+       promtool query instant http://localhost:9090 \
+       'node_libvirt_ceph_mount_duplicate_entries'
+
+4. If restarts continue and stale mounts are growing, stop deleting the pod and
+   follow the ``LibvirtCephStaleMounts`` cleanup procedure.
+
+5. Deploy the libvirt chart fix that defaults the ``/etc/ceph`` mount
+   propagation to ``HostToContainer`` and keeps ``Bidirectional`` as an
+   explicit override only where required.
+
 ``MySQLGaleraOutOfSync``
 ========================
 

@@ -1550,3 +1550,90 @@ tests:
               summary: "Geneve overlay: transmit failures may affect tenant traffic on a compute host"
               description: "192.0.2.10:9100 interface tenant-geneve0 has averaged 3.33 transmit errors per second over the last 5 minutes (threshold > 1.67/s, ~100/min). Normal behavior is zero sustained transmit errors on Geneve tunnel interfaces."
               runbook_url: "https://vexxhost.github.io/atmosphere/admin/monitoring.html#genevetransmiterrors"
+
+  # LibvirtPodRestarts - should NOT fire when libvirt has no restarts
+  - interval: 1m
+    input_series:
+      - series: 'kube_pod_container_status_restarts_total{namespace="openstack",pod="libvirt-abcde",container="libvirt"}'
+        values: '0x80'
+      - series: 'kube_pod_info{namespace="openstack",pod="libvirt-abcde",node="compute-01"}'
+        values: '1x80'
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: LibvirtPodRestarts
+        exp_alerts: []
+
+  # LibvirtPodRestarts - should fire when libvirt restarts repeatedly
+  - interval: 1m
+    input_series:
+      - series: 'kube_pod_container_status_restarts_total{namespace="openstack",pod="libvirt-abcde",container="libvirt"}'
+        values: '0 5x80'
+      - series: 'kube_pod_info{namespace="openstack",pod="libvirt-abcde",node="compute-01"}'
+        values: '1x80'
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: LibvirtPodRestarts
+        exp_alerts:
+          - exp_labels:
+              severity: P4
+              node: compute-01
+            exp_annotations:
+              summary: "Libvirt: repeated pod restarts may cause stale mounts on compute-01"
+              description: "The expression based on increase(kube_pod_container_status_restarts_total[1h]) reports 5 libvirt container restarts on compute-01 in the last hour, which exceeds the threshold of 3. Normal behavior is zero or only rare libvirt restarts. Repeated restarts can recreate Kubernetes subPath bind mounts under /etc/ceph and may lead to stale host mounts."
+              runbook_url: "https://vexxhost.github.io/atmosphere/admin/monitoring.html#libvirtpodrestarts"
+
+  # LibvirtCephStaleMounts - should NOT fire below the warning threshold
+  - interval: 1m
+    input_series:
+      - series: 'node_libvirt_ceph_mount_duplicate_entries{instance="192.0.2.20:9100",job="node-exporter"}'
+        values: '50x40'
+    alert_rule_test:
+      - eval_time: 35m
+        alertname: LibvirtCephStaleMounts
+        exp_alerts: []
+
+  # LibvirtCephStaleMounts - should fire when duplicate mounts persist
+  - interval: 1m
+    input_series:
+      - series: 'node_libvirt_ceph_mount_duplicate_entries{instance="192.0.2.20:9100",job="node-exporter"}'
+        values: '200x40'
+    alert_rule_test:
+      - eval_time: 35m
+        alertname: LibvirtCephStaleMounts
+        exp_alerts:
+          - exp_labels:
+              severity: P4
+              instance: "192.0.2.20:9100"
+              job: node-exporter
+            exp_annotations:
+              summary: "Libvirt: stale Ceph mount buildup may affect host responsiveness on 192.0.2.20:9100"
+              description: "The metric node_libvirt_ceph_mount_duplicate_entries for 192.0.2.20:9100 is 200, which exceeds the threshold of 100 duplicate libvirt/Ceph mount entries for 30 minutes. Normal behavior is 0 duplicate entries. Sustained growth indicates stale bind mounts are accumulating in the host mount namespace."
+              runbook_url: "https://vexxhost.github.io/atmosphere/admin/monitoring.html#libvirtcephstalemounts"
+
+  # LibvirtCephStaleMountsHigh - should NOT fire below the high threshold
+  - interval: 1m
+    input_series:
+      - series: 'node_libvirt_ceph_mount_duplicate_entries{instance="192.0.2.21:9100",job="node-exporter"}'
+        values: '200x20'
+    alert_rule_test:
+      - eval_time: 15m
+        alertname: LibvirtCephStaleMountsHigh
+        exp_alerts: []
+
+  # LibvirtCephStaleMountsHigh - should fire when duplicate mounts are high
+  - interval: 1m
+    input_series:
+      - series: 'node_libvirt_ceph_mount_duplicate_entries{instance="192.0.2.21:9100",job="node-exporter"}'
+        values: '1200x20'
+    alert_rule_test:
+      - eval_time: 15m
+        alertname: LibvirtCephStaleMountsHigh
+        exp_alerts:
+          - exp_labels:
+              severity: P3
+              instance: "192.0.2.21:9100"
+              job: node-exporter
+            exp_annotations:
+              summary: "Libvirt: high stale Ceph mount buildup may affect VMs on 192.0.2.21:9100"
+              description: "The metric node_libvirt_ceph_mount_duplicate_entries for 192.0.2.21:9100 is 1200, which exceeds the high threshold of 1000 duplicate libvirt/Ceph mount entries for 10 minutes. Normal behavior is 0 duplicate entries. At this level mount-scanning host tasks can become expensive and host responsiveness may degrade."
+              runbook_url: "https://vexxhost.github.io/atmosphere/admin/monitoring.html#libvirtcephstalemountshigh"
