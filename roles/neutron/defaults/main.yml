@@ -38,3 +38,10 @@ neutron_policy_server_integration_enabled: true
 
 # Enable Neutron Firewall as a Service (FWaaS)
 neutron_fwaas_enabled: false
+
+# List of SSH keys for generic switch ML2 plugin configuration.
+#
+# neutron_genericswitch_keys:
+#   - name: switch1_key_file_name
+#     key: <private ssh key content>
+neutron_genericswitch_keys: []

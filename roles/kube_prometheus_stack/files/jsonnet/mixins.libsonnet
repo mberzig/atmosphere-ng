@@ -20,6 +20,10 @@ local disabledAlerts = [
   // * Dropped `MySQLDown` due to noisy alerts even
   //   the replication still more than minimum
   'MySQLDown',
+
+  // Superseded by NodeDiskHighLatency which measures actual IO latency
+  // instead of queue depth, which is misleading on SSDs and RAID arrays.
+  'NodeDiskIOSaturation',
 ];
 
 // NOTE(mnaser): This is the default mapping for severities:
@@ -99,6 +103,7 @@ local mixins = {
     },
   },
   coredns: (import 'coredns.libsonnet'),
+  geneve: (import 'geneve.libsonnet'),
   kube: (import 'vendor/github.com/kubernetes-monitoring/kubernetes-mixin/mixin.libsonnet') + {
     _config+:: {
       kubeApiserverSelector: 'job="apiserver"',
@@ -202,9 +207,41 @@ local mixins = {
     (import 'vendor/github.com/prometheus/node_exporter/docs/node-mixin/mixin.libsonnet') {
       _config+:: {
         nodeExporterSelector: 'job="node-exporter"',
+        diskDeviceSelector: 'device=~"(/dev/)?(mmcblk.p.+|nvme.+|rbd.+|sd.+|vd.+|xvd.+|dm-.+|md.+|dasd.+)"',
       },
       prometheusAlerts+:: {
-        groups+: [
+        groups: [
+          if group.name == 'node-exporter' then group {
+            rules: [
+              if rule.alert == 'NodeMemoryHighUtilization' then rule {
+                expr: |||
+                  100 - (
+                    (
+                      node_memory_MemAvailable_bytes{%(nodeExporterSelector)s}
+                      +
+                      (
+                        (
+                          node_memory_HugePages_Free{%(nodeExporterSelector)s}
+                          * on(instance, job) group_left()
+                          node_memory_Hugepagesize_bytes{%(nodeExporterSelector)s}
+                        )
+                        or on(instance, job)
+                        (0 * node_memory_MemAvailable_bytes{%(nodeExporterSelector)s})
+                      )
+                    ) / node_memory_MemTotal_bytes{%(nodeExporterSelector)s} * 100
+                  ) > %(memoryHighUtilizationThreshold)d
+                ||| % mixins.node._config,
+                annotations+: {
+                  summary: 'Node memory: high utilization can affect host and workload stability',
+                  description: 'Computed node memory utilization at {{ $labels.instance }} is {{ printf "%.2f" $value }}%, exceeding the threshold of 90% for 15 minutes. This computation includes free huge page capacity (node_memory_HugePages_Free * node_memory_Hugepagesize_bytes) in available memory to avoid false positives on compute nodes backed by huge pages. Normal behavior is below 90% sustained utilization.',
+                  runbook_url: 'https://vexxhost.github.io/atmosphere/admin/monitoring.html#nodememoryhighutilization',
+                },
+              } else rule
+              for rule in group.rules
+            ],
+          } else group
+          for group in super.groups
+        ] + [
           {
             name: 'node-exporter-extras',
             rules: [
@@ -222,6 +259,39 @@ local mixins = {
                   description: 'Node {{ $labels.instance }} has a time difference {{ $value }}.',
                 },
               },
+              {
+                alert: 'NodeDiskHighLatency',
+                expr: |||
+                  (
+                    (
+                      rate(node_disk_read_time_seconds_total{%(nodeExporterSelector)s, %(diskDeviceSelector)s}[5m])
+                      +
+                      rate(node_disk_write_time_seconds_total{%(nodeExporterSelector)s, %(diskDeviceSelector)s}[5m])
+                    )
+                    /
+                    (
+                      rate(node_disk_reads_completed_total{%(nodeExporterSelector)s, %(diskDeviceSelector)s}[5m])
+                      +
+                      rate(node_disk_writes_completed_total{%(nodeExporterSelector)s, %(diskDeviceSelector)s}[5m])
+                    )
+                  ) > 0.02
+                  and
+                  (
+                    rate(node_disk_reads_completed_total{%(nodeExporterSelector)s, %(diskDeviceSelector)s}[5m])
+                    +
+                    rate(node_disk_writes_completed_total{%(nodeExporterSelector)s, %(diskDeviceSelector)s}[5m])
+                  ) > 0
+                ||| % mixins.node._config,
+                'for': '1h',
+                labels: {
+                  severity: 'P4',
+                },
+                annotations: {
+                  summary: 'Node disk: high IO latency affecting workloads',
+                  description: 'Average IO latency on {{ $labels.device }} at {{ $labels.instance }} is {{ $value | humanizeDuration }} over the last 5 minutes, which exceeds the threshold of 20ms. Normal SSD latency is below 1ms and normal HDD latency is below 15ms.',
+                  runbook_url: 'https://vexxhost.github.io/atmosphere/admin/monitoring.html#nodediskhighlatency',
+                },
+              },
             ],
           },
         ],
@@ -230,6 +300,7 @@ local mixins = {
   goldpinger: (import 'goldpinger.libsonnet'),
   nginx: (import 'nginx.libsonnet'),
   openstack: (import 'openstack.libsonnet'),
+  smartctl: (import 'smartctl.libsonnet'),
 } + (import 'legacy.libsonnet');
 
 {
