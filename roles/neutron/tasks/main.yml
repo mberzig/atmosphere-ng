@@ -57,7 +57,7 @@
     - atmosphere_network_backend == 'ovn'
   ansible.builtin.set_fact:
     _neutron_helm_values: "{{ _neutron_helm_values | combine(__neutron_fwaas_helm_values, recursive=True) }}"
-    
+
 - name: Append Helm values (mount neutron genericswitch keys)
   when: neutron_genericswitch_keys | length > 0
   ansible.builtin.set_fact:
