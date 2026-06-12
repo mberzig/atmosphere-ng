@@ -1,0 +1,88 @@
+# Copyright (c) 2026 Mohamed Berzig
+#
+# Licensed under the Apache License, Version 2.0 (the "License"); you may
+# not use this file except in compliance with the License. You may obtain
+# a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+# WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+# License for the specific language governing permissions and limitations
+# under the License.
+
+_harbor_helm_values:
+  expose:
+    type: ingress
+    tls:
+      enabled: true
+      certSource: secret
+      secret:
+        secretName: "{{ harbor_host }}-tls"
+    ingress:
+      hosts:
+        core: "{{ harbor_host }}"
+      className: "{{ harbor_ingress_class_name }}"
+      annotations: "{{ {'cert-manager.io/cluster-issuer': harbor_ingress_cluster_issuer} | combine(harbor_ingress_annotations) }}"
+  externalURL: "https://{{ harbor_host }}"
+  harborAdminPassword: "{{ harbor_admin_password }}"
+  persistence:
+    enabled: true
+    persistentVolumeClaim:
+      registry:
+        storageClass: "{{ harbor_storage_class }}"
+      jobservice:
+        jobLog:
+          storageClass: "{{ harbor_storage_class }}"
+      database:
+        storageClass: "{{ harbor_storage_class }}"
+      redis:
+        storageClass: "{{ harbor_storage_class }}"
+      trivy:
+        storageClass: "{{ harbor_storage_class }}"
+  metrics:
+    enabled: true
+  nginx:
+    image:
+      repository: "{{ atmosphere_images['harbor_nginx'] | vexxhost.kubernetes.docker_image('domain') }}/{{ atmosphere_images['harbor_nginx'] | vexxhost.kubernetes.docker_image('path') }}"
+      tag: "{{ atmosphere_images['harbor_nginx'] | vexxhost.kubernetes.docker_image('tag') }}"
+  portal:
+    image:
+      repository: "{{ atmosphere_images['harbor_portal'] | vexxhost.kubernetes.docker_image('domain') }}/{{ atmosphere_images['harbor_portal'] | vexxhost.kubernetes.docker_image('path') }}"
+      tag: "{{ atmosphere_images['harbor_portal'] | vexxhost.kubernetes.docker_image('tag') }}"
+  core:
+    image:
+      repository: "{{ atmosphere_images['harbor_core'] | vexxhost.kubernetes.docker_image('domain') }}/{{ atmosphere_images['harbor_core'] | vexxhost.kubernetes.docker_image('path') }}"
+      tag: "{{ atmosphere_images['harbor_core'] | vexxhost.kubernetes.docker_image('tag') }}"
+  jobservice:
+    image:
+      repository: "{{ atmosphere_images['harbor_jobservice'] | vexxhost.kubernetes.docker_image('domain') }}/{{ atmosphere_images['harbor_jobservice'] | vexxhost.kubernetes.docker_image('path') }}"
+      tag: "{{ atmosphere_images['harbor_jobservice'] | vexxhost.kubernetes.docker_image('tag') }}"
+  registry:
+    registry:
+      image:
+        repository: "{{ atmosphere_images['harbor_registry'] | vexxhost.kubernetes.docker_image('domain') }}/{{ atmosphere_images['harbor_registry'] | vexxhost.kubernetes.docker_image('path') }}"
+        tag: "{{ atmosphere_images['harbor_registry'] | vexxhost.kubernetes.docker_image('tag') }}"
+    controller:
+      image:
+        repository: "{{ atmosphere_images['harbor_registryctl'] | vexxhost.kubernetes.docker_image('domain') }}/{{ atmosphere_images['harbor_registryctl'] | vexxhost.kubernetes.docker_image('path') }}"
+        tag: "{{ atmosphere_images['harbor_registryctl'] | vexxhost.kubernetes.docker_image('tag') }}"
+  trivy:
+    image:
+      repository: "{{ atmosphere_images['harbor_trivy_adapter'] | vexxhost.kubernetes.docker_image('domain') }}/{{ atmosphere_images['harbor_trivy_adapter'] | vexxhost.kubernetes.docker_image('path') }}"
+      tag: "{{ atmosphere_images['harbor_trivy_adapter'] | vexxhost.kubernetes.docker_image('tag') }}"
+  database:
+    internal:
+      image:
+        repository: "{{ atmosphere_images['harbor_database'] | vexxhost.kubernetes.docker_image('domain') }}/{{ atmosphere_images['harbor_database'] | vexxhost.kubernetes.docker_image('path') }}"
+        tag: "{{ atmosphere_images['harbor_database'] | vexxhost.kubernetes.docker_image('tag') }}"
+  redis:
+    internal:
+      image:
+        repository: "{{ atmosphere_images['harbor_redis'] | vexxhost.kubernetes.docker_image('domain') }}/{{ atmosphere_images['harbor_redis'] | vexxhost.kubernetes.docker_image('path') }}"
+        tag: "{{ atmosphere_images['harbor_redis'] | vexxhost.kubernetes.docker_image('tag') }}"
+  exporter:
+    image:
+      repository: "{{ atmosphere_images['harbor_exporter'] | vexxhost.kubernetes.docker_image('domain') }}/{{ atmosphere_images['harbor_exporter'] | vexxhost.kubernetes.docker_image('path') }}"
+      tag: "{{ atmosphere_images['harbor_exporter'] | vexxhost.kubernetes.docker_image('tag') }}"

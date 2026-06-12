@@ -1,0 +1,10 @@
+---
+features:
+  - |
+    An application catalog foundation is now available with two new
+    optional components: Harbor serves and scans the curated images and
+    charts locally, while Argo CD is the deployment channel where every
+    installation is a commit in a Git repository. Both components are
+    disabled by default and can be enabled by setting the
+    ``atmosphere_harbor_enabled`` and ``atmosphere_argocd_enabled``
+    variables to ``true``.
