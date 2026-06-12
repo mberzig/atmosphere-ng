@@ -12,16 +12,20 @@
 # License for the specific language governing permissions and limitations
 # under the License.
 
-- name: Configure Disaster Recovery
-  hosts: "{{ ceph_control_plane_group | default('controllers') }}"
-  become: true
-  roles:
-    - role: ceph_rbd_mirror
-      when: atmosphere_rbd_mirror_enabled | default(false)
-      tags:
-        - ceph-rbd-mirror
+galaxy_info:
+  author: Mohamed Berzig
+  description: Configure RadosGW multisite replication between two regions
+  license: Apache-2.0
+  min_ansible_version: 5.5.0
+  standalone: false
+  platforms:
+    - name: EL
+      versions:
+        - "8"
+        - "9"
+    - name: Ubuntu
+      versions:
+        - focal
+        - jammy
 
-    - role: ceph_rgw_multisite
-      when: atmosphere_rgw_multisite_enabled | default(false)
-      tags:
-        - ceph-rgw-multisite
+dependencies: []

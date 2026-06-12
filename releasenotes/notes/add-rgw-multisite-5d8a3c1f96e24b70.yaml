@@ -1,0 +1,8 @@
+---
+features:
+  - |
+    The RadosGW object storage can now be replicated between two regions
+    using the multisite feature, which keeps the objects written in one
+    region, such as the platform backups, readable from the other region.
+    The feature is disabled by default and can be enabled by setting the
+    ``atmosphere_rgw_multisite_enabled`` variable to ``true``.
