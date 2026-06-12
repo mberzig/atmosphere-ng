@@ -44,6 +44,11 @@
   tags:
     - gpu
 
+- name: Deploy LLM service
+  ansible.builtin.import_playbook: vexxhost.atmosphere.llmaas
+  tags:
+    - llmaas
+
 - name: Deploy OpenStack
   import_playbook: vexxhost.atmosphere.openstack
 
