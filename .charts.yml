@@ -15,6 +15,14 @@
       version: 2025.1.8
 
 charts:
+  - name: argo-cd
+    version: 9.5.21
+    repository:
+      url: https://argoproj.github.io/argo-helm
+    dependencies:
+      - name: redis-ha
+        repository: https://dandydeveloper.github.io/charts/
+        version: 4.34.11
   - name: barbican
     version: 0.3.10
     repository: *openstack_helm_repository
@@ -77,6 +85,10 @@ charts:
     version: 1.0.0
     repository:
       url: https://bloomberg.github.io/goldpinger
+  - name: harbor
+    version: 1.19.1
+    repository:
+      url: https://helm.goharbor.io
   - name: heat
     version: 0.3.7
     repository: *openstack_helm_repository

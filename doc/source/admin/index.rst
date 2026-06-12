@@ -13,6 +13,7 @@ information to ensure stable and efficient operation of the system.
 .. toctree::
    :maxdepth: 2
 
+   appstore
    ceph
    database-backups
    disaster-recovery

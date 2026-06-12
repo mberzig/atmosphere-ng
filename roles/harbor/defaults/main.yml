@@ -1,0 +1,53 @@
+# Copyright (c) 2026 Mohamed Berzig
+#
+# Licensed under the Apache License, Version 2.0 (the "License"); you may
+# not use this file except in compliance with the License. You may obtain
+# a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+# WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+# License for the specific language governing permissions and limitations
+# under the License.
+
+harbor_helm_release_name: harbor
+harbor_helm_chart_path: "../../charts/harbor/"
+harbor_helm_chart_ref: /usr/local/src/harbor
+harbor_helm_release_namespace: harbor
+harbor_helm_kubeconfig: "{{ kubeconfig_path | default('/etc/kubernetes/admin.conf') }}"
+harbor_helm_values: {}
+
+# Hostname which Harbor is served on, it should point to the Ingress
+# controller of the cluster.
+#
+# harbor_host: harbor.example.com
+harbor_host: "{{ undef(hint='You must specify a Harbor host using harbor_host') }}"
+
+# Password of the Harbor "admin" user.
+#
+# harbor_admin_password: secret
+harbor_admin_password: "{{ undef(hint='You must specify a Harbor admin password using harbor_admin_password') }}"
+
+# Annotations added to the Harbor ingress.
+#
+# harbor_ingress_annotations:
+#   nginx.ingress.kubernetes.io/proxy-body-size: "0"
+harbor_ingress_annotations: {}
+
+# Class name of the ingress serving Harbor.
+#
+# harbor_ingress_class_name: nginx
+harbor_ingress_class_name: "{{ atmosphere_ingress_class_name }}"
+
+# Cluster issuer used to generate the TLS certificate of the ingress.
+#
+# harbor_ingress_cluster_issuer: letsencrypt
+harbor_ingress_cluster_issuer: "{{ atmosphere_ingress_cluster_issuer }}"
+
+# Storage class backing the persistent volumes of Harbor, an empty value
+# uses the default storage class of the cluster.
+#
+# harbor_storage_class: general
+harbor_storage_class: ""
