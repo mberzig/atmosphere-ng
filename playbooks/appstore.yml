@@ -25,3 +25,8 @@
       when: atmosphere_harbor_enabled | default(false)
       tags:
         - harbor
+
+    - role: kyverno
+      when: atmosphere_kyverno_enabled | default(false)
+      tags:
+        - kyverno

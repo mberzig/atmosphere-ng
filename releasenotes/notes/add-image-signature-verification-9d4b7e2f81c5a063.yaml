@@ -1,0 +1,10 @@
+---
+features:
+  - |
+    The images of the application catalog can now be signed with Cosign
+    and verified at admission by Kyverno, which rejects any matching
+    image without a valid signature and pins the verified images to
+    their digest. Kyverno is disabled by default and can be enabled by
+    setting the ``atmosphere_kyverno_enabled`` variable to ``true``,
+    with the verification policies defined in the
+    ``kyverno_verify_images`` variable.
