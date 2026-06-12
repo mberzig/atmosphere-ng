@@ -1,0 +1,8 @@
+---
+features:
+  - |
+    Velero can now be deployed to take scheduled backups of the cluster
+    resources and persistent volumes. Backups are stored in any S3-compatible
+    object storage such as the built-in Ceph RadosGW. The deployment is
+    disabled by default and can be enabled by setting the
+    ``atmosphere_velero_enabled`` variable to ``true``.

@@ -1,0 +1,68 @@
+# Copyright (c) 2026 Mohamed Berzig
+#
+# Licensed under the Apache License, Version 2.0 (the "License"); you may
+# not use this file except in compliance with the License. You may obtain
+# a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+# WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+# License for the specific language governing permissions and limitations
+# under the License.
+
+velero_helm_release_name: velero
+velero_helm_chart_path: "../../charts/velero/"
+velero_helm_chart_ref: /usr/local/src/velero
+velero_helm_release_namespace: velero
+velero_helm_kubeconfig: "{{ kubeconfig_path | default('/etc/kubernetes/admin.conf') }}"
+velero_helm_values: {}
+
+# URL of the S3-compatible endpoint where the backups are stored.  It
+# defaults to the RadosGW instance managed by the Rook Ceph cluster role.
+#
+# velero_storage_url: https://s3.example.com
+velero_storage_url: "http://rook-ceph-rgw-{{ rook_ceph_cluster_name | default('ceph') }}.{{ rook_ceph_cluster_helm_release_namespace | default('openstack') }}.svc"
+
+# Name of the bucket where the backups are stored.  The bucket must exist
+# before Velero is deployed.
+#
+# velero_storage_bucket: velero
+velero_storage_bucket: velero
+
+# Region of the S3-compatible endpoint.  The default value is accepted by
+# RadosGW, set this to the real region when using another object store.
+#
+# velero_storage_region: us-east-1
+velero_storage_region: default
+
+# Access key used to read and write the backup bucket.
+#
+# velero_storage_access_key: velero
+velero_storage_access_key: ""
+
+# Secret key used to read and write the backup bucket.
+#
+# velero_storage_secret_key: secret
+velero_storage_secret_key: ""
+
+# Backup schedules to create, keyed by schedule name.  The default takes
+# a daily backup of all namespaces with a 30 day retention, you can add
+# more schedules to take backups of specific namespaces with their own
+# retention based on the recovery objectives of the workloads.
+#
+# velero_schedules:
+#   tenant-daily:
+#     schedule: "0 2 * * *"
+#     template:
+#       ttl: 336h
+#       includedNamespaces:
+#         - my-namespace
+velero_schedules:
+  platform-daily:
+    schedule: "0 1 * * *"
+    template:
+      ttl: 720h
+      includedNamespaces:
+        - "*"
