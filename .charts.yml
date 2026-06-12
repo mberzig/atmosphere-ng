@@ -139,6 +139,20 @@ charts:
     version: 60.2.0
     repository:
       url: https://prometheus-community.github.io/helm-charts
+  - name: kyverno
+    version: 3.8.1
+    repository:
+      url: https://kyverno.github.io/kyverno
+    dependencies:
+      - name: kyverno-api
+        repository: https://kyverno.github.io/api
+        version: 0.0.1-alpha.2
+      - name: openreports
+        repository: https://openreports.github.io/reports-api
+        version: 0.1.0
+      - name: reports-server
+        repository: https://kyverno.github.io/reports-server/
+        version: 0.1.6
   - name: libvirt
     version: 1.1.0
     repository: *vexxhost_openstack_helm_repository

@@ -52,6 +52,45 @@ before being offered:
 #. Validate the deployment of the curated chart on a staging environment
    before publishing it to the catalog.
 
+********************
+Signing the catalog
+********************
+
+The images of the catalog can be signed with `Cosign
+<https://docs.sigstore.dev/cosign/signing/overview/>`_ and verified at
+admission, so that an unsigned or tampered image is rejected before it
+runs. The verification is enforced by Kyverno, which is shipped with
+Atmosphere but disabled by default.
+
+The curation pipeline signs every image after pushing it to Harbor, with
+a key pair generated once and kept in a safe place:
+
+.. code-block:: console
+
+  cosign generate-key-pair
+  cosign sign --key cosign.key harbor.example.com/catalog/<image>@<digest>
+
+The signatures are stored in Harbor next to the images. You can then
+enable the verification by providing the public key and the image
+references to protect, which rejects any matching image without a valid
+signature and pins the verified images to their digest so that a tag
+cannot be moved afterwards:
+
+.. code-block:: yaml
+
+  atmosphere_kyverno_enabled: true
+  kyverno_verify_images:
+    - name: catalog
+      images:
+        - harbor.example.com/catalog/*
+      public_key: |
+        -----BEGIN PUBLIC KEY-----
+        <contents of cosign.pub>
+        -----END PUBLIC KEY-----
+
+The policy applies to all namespaces by default and can be scoped with
+an optional list of namespaces per entry.
+
 **************************
 Installing an application
 **************************

@@ -1,0 +1,63 @@
+# Copyright (c) 2026 Mohamed Berzig
+#
+# Licensed under the Apache License, Version 2.0 (the "License"); you may
+# not use this file except in compliance with the License. You may obtain
+# a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+# WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+# License for the specific language governing permissions and limitations
+# under the License.
+
+- name: Deploy Helm chart
+  run_once: true
+  kubernetes.core.helm:
+    name: "{{ kyverno_helm_release_name }}"
+    chart_ref: "{{ kyverno_helm_chart_ref }}"
+    release_namespace: "{{ kyverno_helm_release_namespace }}"
+    create_namespace: true
+    kubeconfig: "{{ kyverno_helm_kubeconfig }}"
+    values: "{{ _kyverno_helm_values | combine(kyverno_helm_values, recursive=True) | to_json }}"
+
+- name: Create image verification policies
+  run_once: true
+  kubernetes.core.k8s:
+    state: present
+    definition:
+      apiVersion: kyverno.io/v1
+      kind: ClusterPolicy
+      metadata:
+        name: verify-image-{{ item.name }}
+      spec:
+        validationFailureAction: Enforce
+        background: false
+        webhookTimeoutSeconds: 30
+        failurePolicy: Fail
+        rules:
+          - name: verify-signature
+            match:
+              any:
+                - resources: >-
+                    {{
+                      {'kinds': ['Pod']}
+                      | combine(
+                          {'namespaces': item.namespaces}
+                          if item.namespaces is defined else {}
+                        )
+                    }}
+            verifyImages:
+              - imageReferences: "{{ item.images }}"
+                mutateDigest: true
+                verifyDigest: true
+                required: true
+                attestors:
+                  - count: 1
+                    entries:
+                      - keys:
+                          publicKeys: "{{ item.public_key }}"
+  loop: "{{ kyverno_verify_images }}"
+  loop_control:
+    label: "{{ item.name }}"
