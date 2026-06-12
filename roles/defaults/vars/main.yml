@@ -139,6 +139,7 @@ _atmosphere_images:
   libvirt_tls_sidecar: "{{ atmosphere_image_prefix }}ghcr.io/vexxhost/libvirt-tls-sidecar:v1.0.0@sha256:b0c5b8ea65fa007b2efbedf75fe8b54981173929e80b921fd4c5847dadb560a6"
   libvirt_exporter: "{{ atmosphere_image_prefix }}ghcr.io/inovex/prometheus-libvirt-exporter:2.2.0"
   local_path_provisioner_helper: "{{ atmosphere_image_prefix }}ghcr.io/containerd/busybox:1.36"
+  litellm: "{{ atmosphere_image_prefix }}ghcr.io/berriai/litellm:main-v1.88.1"
   local_path_provisioner: "{{ atmosphere_image_prefix }}docker.io/rancher/local-path-provisioner:v0.0.24"
   loki_gateway: "{{ atmosphere_image_prefix }}docker.io/nginxinc/nginx-unprivileged:1.24-alpine"
   loki: "{{ atmosphere_image_prefix }}docker.io/grafana/loki:3.0.0"
@@ -248,6 +249,7 @@ _atmosphere_images:
   velero: "{{ atmosphere_image_prefix }}docker.io/velero/velero:v1.18.1"
   velero_kubectl: "{{ atmosphere_image_prefix }}registry.k8s.io/kubectl:v1.34.5"
   velero_plugin_for_aws: "{{ atmosphere_image_prefix }}docker.io/velero/velero-plugin-for-aws:v1.14.1"
+  vllm: "{{ atmosphere_image_prefix }}docker.io/vllm/vllm-openai:v0.22.1"
 
 atmosphere_images: '{{ _atmosphere_images | combine(atmosphere_image_overrides, recursive=True) }}'
 

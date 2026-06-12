@@ -1,0 +1,161 @@
+# Copyright (c) 2026 Mohamed Berzig
+#
+# Licensed under the Apache License, Version 2.0 (the "License"); you may
+# not use this file except in compliance with the License. You may obtain
+# a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+# WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+# License for the specific language governing permissions and limitations
+# under the License.
+
+- name: Create namespace
+  run_once: true
+  kubernetes.core.k8s:
+    state: present
+    definition:
+      apiVersion: v1
+      kind: Namespace
+      metadata:
+        name: "{{ litellm_namespace }}"
+
+- name: Create gateway secret
+  run_once: true
+  no_log: true
+  kubernetes.core.k8s:
+    state: present
+    definition:
+      apiVersion: v1
+      kind: Secret
+      metadata:
+        name: litellm
+        namespace: "{{ litellm_namespace }}"
+      stringData: >-
+        {{
+          {'master-key': litellm_master_key}
+          | combine(
+              {'database-url': litellm_database_url}
+              if litellm_database_url else {}
+            )
+        }}
+
+- name: Create gateway configuration
+  run_once: true
+  kubernetes.core.k8s:
+    state: present
+    definition:
+      apiVersion: v1
+      kind: ConfigMap
+      metadata:
+        name: litellm
+        namespace: "{{ litellm_namespace }}"
+      data:
+        config.yaml: "{{ _litellm_config | to_nice_yaml(indent=2) }}"
+
+- name: Create gateway deployment
+  run_once: true
+  kubernetes.core.k8s:
+    state: present
+    definition:
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: litellm
+        namespace: "{{ litellm_namespace }}"
+        labels:
+          app.kubernetes.io/name: litellm
+      spec:
+        replicas: "{{ litellm_replicas }}"
+        selector:
+          matchLabels:
+            app.kubernetes.io/name: litellm
+        template:
+          metadata:
+            labels:
+              app.kubernetes.io/name: litellm
+            annotations:
+              checksum/config: "{{ _litellm_config | to_json | hash('sha256') }}"
+          spec:
+            containers:
+              - name: litellm
+                image: "{{ atmosphere_images['litellm'] | vexxhost.kubernetes.docker_image('ref') }}"
+                args:
+                  - --config
+                  - /etc/litellm/config.yaml
+                env: "{{ _litellm_env }}"
+                ports:
+                  - name: http
+                    containerPort: 4000
+                readinessProbe:
+                  httpGet:
+                    path: /health/readiness
+                    port: http
+                  initialDelaySeconds: 20
+                  periodSeconds: 10
+                livenessProbe:
+                  httpGet:
+                    path: /health/liveliness
+                    port: http
+                  initialDelaySeconds: 60
+                  periodSeconds: 30
+                volumeMounts:
+                  - name: config
+                    mountPath: /etc/litellm
+            volumes:
+              - name: config
+                configMap:
+                  name: litellm
+  register: _litellm_deployment
+
+- name: Create gateway service
+  run_once: true
+  kubernetes.core.k8s:
+    state: present
+    definition:
+      apiVersion: v1
+      kind: Service
+      metadata:
+        name: litellm
+        namespace: "{{ litellm_namespace }}"
+        labels:
+          app.kubernetes.io/name: litellm
+      spec:
+        selector:
+          app.kubernetes.io/name: litellm
+        ports:
+          - name: http
+            port: 80
+            targetPort: http
+
+- name: Create gateway ingress
+  run_once: true
+  when: litellm_host | length > 0
+  kubernetes.core.k8s:
+    state: present
+    definition:
+      apiVersion: networking.k8s.io/v1
+      kind: Ingress
+      metadata:
+        name: litellm
+        namespace: "{{ litellm_namespace }}"
+        annotations: "{{ {'cert-manager.io/cluster-issuer': litellm_ingress_cluster_issuer} | combine(litellm_ingress_annotations) }}"
+      spec:
+        ingressClassName: "{{ litellm_ingress_class_name }}"
+        rules:
+          - host: "{{ litellm_host }}"
+            http:
+              paths:
+                - path: /
+                  pathType: Prefix
+                  backend:
+                    service:
+                      name: litellm
+                      port:
+                        name: http
+        tls:
+          - hosts:
+              - "{{ litellm_host }}"
+            secretName: "{{ litellm_host }}-tls"

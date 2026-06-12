@@ -1,0 +1,10 @@
+---
+features:
+  - |
+    Large language models can now be served on the platform with vLLM
+    running one OpenAI-compatible inference server per model, behind the
+    LiteLLM gateway which handles the virtual API keys, the budgets, the
+    rate limits and the usage accounting per key. Both components are
+    disabled by default and can be enabled by setting the
+    ``atmosphere_vllm_enabled`` and ``atmosphere_litellm_enabled``
+    variables to ``true``.

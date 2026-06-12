@@ -1,0 +1,71 @@
+# Copyright (c) 2026 Mohamed Berzig
+#
+# Licensed under the Apache License, Version 2.0 (the "License"); you may
+# not use this file except in compliance with the License. You may obtain
+# a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+# WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+# License for the specific language governing permissions and limitations
+# under the License.
+
+# Namespace hosting the gateway, shared with the inference servers.
+#
+# litellm_namespace: llm
+litellm_namespace: "{{ vllm_namespace | default('llm') }}"
+
+# Number of replicas of the gateway.
+#
+# litellm_replicas: 2
+litellm_replicas: 2
+
+# Master key of the gateway, used by the administrators to manage the
+# virtual API keys. It must start with "sk-".
+#
+# litellm_master_key: sk-secret
+litellm_master_key: "{{ undef(hint='You must specify a LiteLLM master key using litellm_master_key') }}"
+
+# Connection URL of a PostgreSQL database, which enables the virtual API
+# keys, the budgets and the usage accounting. An empty value runs the
+# gateway without a database, where only the master key is accepted.
+#
+# litellm_database_url: postgresql://litellm:secret@host:5432/litellm
+litellm_database_url: ""
+
+# Models routed by the gateway. The clients target the "model_name" alias
+# while the gateway forwards the requests to the matching backend, such
+# as a vLLM service deployed by the vllm role.
+#
+# litellm_model_list:
+#   - model_name: qwen3-32b
+#     litellm_params:
+#       model: openai/Qwen/Qwen3-32B
+#       api_base: http://vllm-qwen3-32b.llm.svc/v1
+#       api_key: none
+litellm_model_list: []
+
+# Hostname which the gateway is served on, it should point to the Ingress
+# controller of the cluster. An empty value does not create an ingress
+# and keeps the gateway internal.
+#
+# litellm_host: llm.example.com
+litellm_host: ""
+
+# Annotations added to the gateway ingress.
+#
+# litellm_ingress_annotations:
+#   nginx.ingress.kubernetes.io/proxy-body-size: "0"
+litellm_ingress_annotations: {}
+
+# Class name of the ingress serving the gateway.
+#
+# litellm_ingress_class_name: nginx
+litellm_ingress_class_name: "{{ atmosphere_ingress_class_name | default('') }}"
+
+# Cluster issuer used to generate the TLS certificate of the ingress.
+#
+# litellm_ingress_cluster_issuer: letsencrypt
+litellm_ingress_cluster_issuer: "{{ atmosphere_ingress_cluster_issuer | default('') }}"

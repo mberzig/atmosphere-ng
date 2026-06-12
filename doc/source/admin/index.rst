@@ -21,6 +21,7 @@ information to ensure stable and efficient operation of the system.
    emulated-tpm
    gpu
    integration
+   llmaas
    maintenance
    monitoring
    platform-backups
