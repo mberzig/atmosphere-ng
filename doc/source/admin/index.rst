@@ -16,6 +16,7 @@ information to ensure stable and efficient operation of the system.
    ceph
    database-backups
    disaster-recovery
+   disaster-recovery-runbooks
    emulated-tpm
    integration
    maintenance

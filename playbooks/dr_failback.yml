@@ -1,0 +1,92 @@
+# Copyright (c) 2026 Mohamed Berzig
+#
+# Licensed under the Apache License, Version 2.0 (the "License"); you may
+# not use this file except in compliance with the License. You may obtain
+# a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+# WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+# License for the specific language governing permissions and limitations
+# under the License.
+
+# This playbook prepares the failback by running against the FAILED
+# region once it is back online: it demotes its stale images and requests
+# a resync from the region currently serving the data. Once the pools
+# report a healthy mirroring state again, the final switchover is done by
+# demoting the pools on the surviving region and running the
+# dr_failover.yml playbook against this region.
+
+- name: Resynchronize this region from the current primary
+  hosts: "{{ ceph_control_plane_group | default('controllers') }}"
+  become: true
+  vars_prompt:
+    - name: dr_failback_confirm
+      prompt: >-
+        This step demotes the mirrored RBD pools on THIS region and
+        resynchronizes their images from the peer region, DISCARDING any
+        local change made since the failover. Type "resync" to continue
+      private: false
+  pre_tasks:
+    - name: Validate the confirmation
+      run_once: true
+      ansible.builtin.assert:
+        that:
+          - dr_failback_confirm == 'resync'
+        fail_msg: The resync was not confirmed, no change was made.
+        quiet: true
+
+    - name: Assert that mirrored pools are configured
+      run_once: true
+      ansible.builtin.assert:
+        that:
+          - ceph_rbd_mirror_pools | default([]) | length > 0
+        fail_msg: >-
+          The "ceph_rbd_mirror_pools" variable is empty, there is nothing
+          to resynchronize on this region.
+        quiet: true
+  tasks:
+    - name: Demote the mirrored pools on this region
+      run_once: true
+      ansible.builtin.command:
+        cmd: cephadm shell -- rbd mirror pool demote {{ item.name }}
+      register: _dr_failback_demote
+      failed_when:
+        - _dr_failback_demote.rc != 0
+        - "'primary' not in _dr_failback_demote.stderr"
+      loop: "{{ ceph_rbd_mirror_pools }}"
+      loop_control:
+        label: "{{ item.name }}"
+
+    - name: Request a resync of all images from the peer region
+      run_once: true
+      ansible.builtin.shell:
+        cmd: >-
+          cephadm shell -- bash -c
+          "rbd ls {{ item.name }} |
+          xargs --no-run-if-empty -n1 -I{}
+          rbd mirror image resync {{ item.name }}/{}"
+      changed_when: true
+      loop: "{{ ceph_rbd_mirror_pools }}"
+      loop_control:
+        label: "{{ item.name }}"
+
+    - name: Get mirroring status of pools after the resync request
+      run_once: true
+      ansible.builtin.command:
+        cmd: cephadm shell -- rbd mirror pool status {{ item.name }}
+      changed_when: false
+      loop: "{{ ceph_rbd_mirror_pools }}"
+      loop_control:
+        label: "{{ item.name }}"
+      register: _dr_failback_status
+
+    - name: Display the mirroring status of pools after the resync request
+      run_once: true
+      ansible.builtin.debug:
+        msg: "{{ item.stdout_lines }}"
+      loop: "{{ _dr_failback_status.results }}"
+      loop_control:
+        label: "{{ item.item.name }}"
