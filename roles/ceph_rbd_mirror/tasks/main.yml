@@ -1,0 +1,134 @@
+# Copyright (c) 2026 Mohamed Berzig
+#
+# Licensed under the Apache License, Version 2.0 (the "License"); you may
+# not use this file except in compliance with the License. You may obtain
+# a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+# WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+# License for the specific language governing permissions and limitations
+# under the License.
+
+- name: Assert that mirrored peers reference a mirrored pool
+  run_once: true
+  ansible.builtin.assert:
+    that:
+      - item.pool in (ceph_rbd_mirror_pools | map(attribute='name') | list)
+    fail_msg: >-
+      The pool "{{ item.pool }}" must also be listed in the
+      "ceph_rbd_mirror_pools" variable.
+    quiet: true
+  loop: "{{ ceph_rbd_mirror_peers }}"
+  loop_control:
+    label: "{{ item.pool }}"
+
+- name: Deploy rbd-mirror daemon
+  run_once: true
+  vexxhost.ceph.orch_apply:
+    spec: "{{ {'service_type': 'rbd-mirror', 'placement': ceph_rbd_mirror_placement} | to_nice_yaml(indent=2) }}"
+
+- name: Get mirroring information for pools
+  run_once: true
+  ansible.builtin.command:
+    cmd: cephadm shell -- rbd mirror pool info {{ item.name }} --format json
+  changed_when: false
+  loop: "{{ ceph_rbd_mirror_pools }}"
+  loop_control:
+    label: "{{ item.name }}"
+  register: _ceph_rbd_mirror_pool_info
+
+- name: Enable mirroring for pools
+  run_once: true
+  ansible.builtin.command:
+    cmd: cephadm shell -- rbd mirror pool enable {{ item.item.name }} image
+  when: (item.stdout | from_json).mode == 'disabled'
+  loop: "{{ _ceph_rbd_mirror_pool_info.results }}"
+  loop_control:
+    label: "{{ item.item.name }}"
+
+- name: Create peer bootstrap tokens
+  run_once: true
+  ansible.builtin.shell:
+    cmd: >-
+      cephadm shell -- rbd mirror pool peer bootstrap create
+      {% if ceph_rbd_mirror_site_name %}--site-name {{ ceph_rbd_mirror_site_name }}{% endif %}
+      {{ item.name }} > /etc/ceph/rbd-mirror-peer-{{ item.name }}.token
+    creates: /etc/ceph/rbd-mirror-peer-{{ item.name }}.token
+  when: ceph_rbd_mirror_bootstrap_create | bool
+  loop: "{{ ceph_rbd_mirror_pools }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: Write peer bootstrap tokens
+  run_once: true
+  vars:
+    _ceph_rbd_mirror_pool_peers: >-
+      {{
+        ((_ceph_rbd_mirror_pool_info.results
+          | selectattr('item.name', 'equalto', item.pool)
+          | first).stdout | from_json).peers | default([])
+      }}
+  when: _ceph_rbd_mirror_pool_peers | length == 0
+  no_log: true
+  ansible.builtin.copy:
+    content: "{{ item.token }}"
+    dest: /etc/ceph/rbd-mirror-import-{{ item.pool }}.token
+    owner: root
+    group: root
+    mode: "0600"
+  loop: "{{ ceph_rbd_mirror_peers }}"
+  loop_control:
+    label: "{{ item.pool }}"
+
+- name: Import peer bootstrap tokens
+  run_once: true
+  vars:
+    _ceph_rbd_mirror_pool_peers: >-
+      {{
+        ((_ceph_rbd_mirror_pool_info.results
+          | selectattr('item.name', 'equalto', item.pool)
+          | first).stdout | from_json).peers | default([])
+      }}
+  when: _ceph_rbd_mirror_pool_peers | length == 0
+  ansible.builtin.command:
+    cmd: >-
+      cephadm shell -- rbd mirror pool peer bootstrap import
+      {% if ceph_rbd_mirror_site_name %}--site-name {{ ceph_rbd_mirror_site_name }}{% endif %}
+      --direction {{ item.direction | default('rx-tx') }}
+      {{ item.pool }} /etc/ceph/rbd-mirror-import-{{ item.pool }}.token
+  loop: "{{ ceph_rbd_mirror_peers }}"
+  loop_control:
+    label: "{{ item.pool }}"
+
+- name: Get mirror snapshot schedules for pools
+  run_once: true
+  ansible.builtin.command:
+    cmd: cephadm shell -- rbd mirror snapshot schedule ls --pool {{ item.name }} --format json
+  changed_when: false
+  failed_when: false
+  loop: "{{ ceph_rbd_mirror_pools }}"
+  loop_control:
+    label: "{{ item.name }}"
+  register: _ceph_rbd_mirror_schedules
+
+- name: Add mirror snapshot schedules for pools
+  run_once: true
+  ansible.builtin.command:
+    cmd: >-
+      cephadm shell -- rbd mirror snapshot schedule add
+      --pool {{ item.item.name }} {{ item.item.interval | default('15m') }}
+  when: item.rc != 0 or (item.item.interval | default('15m')) not in item.stdout
+  loop: "{{ _ceph_rbd_mirror_schedules.results }}"
+  loop_control:
+    label: "{{ item.item.name }}"
+
+- name: Install mirroring health check script
+  ansible.builtin.copy:
+    src: rbd-mirror-health
+    dest: /usr/local/bin/rbd-mirror-health
+    owner: root
+    group: root
+    mode: "0755"
