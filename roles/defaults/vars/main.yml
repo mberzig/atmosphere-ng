@@ -66,6 +66,7 @@ _atmosphere_images:
   grafana_sidecar: "{{ atmosphere_image_prefix }}quay.io/kiwigrid/k8s-sidecar:1.26.1"
   grafana: "{{ atmosphere_image_prefix }}docker.io/grafana/grafana:11.0.0"
   goldpinger: "{{ atmosphere_image_prefix }}docker.io/bloomberg/goldpinger:3.10.1"
+  gpu_operator: "{{ atmosphere_image_prefix }}nvcr.io/nvidia/gpu-operator:v26.3.2"
   frr: "{{ atmosphere_image_prefix }}quay.io/frrouting/frr:9.1.0"
   frr_k8s: "{{ atmosphere_image_prefix }}quay.io/metallb/frr-k8s:v0.0.17"
   haproxy: "{{ atmosphere_image_prefix }}docker.io/library/haproxy:2.5"

@@ -39,6 +39,11 @@
   tags:
     - appstore
 
+- name: Deploy GPU support
+  ansible.builtin.import_playbook: vexxhost.atmosphere.gpu
+  tags:
+    - gpu
+
 - name: Deploy OpenStack
   import_playbook: vexxhost.atmosphere.openstack
 

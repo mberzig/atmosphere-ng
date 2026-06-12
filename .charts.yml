@@ -85,6 +85,10 @@ charts:
     version: 1.0.0
     repository:
       url: https://bloomberg.github.io/goldpinger
+  - name: gpu-operator
+    version: v26.3.2
+    repository:
+      url: https://helm.ngc.nvidia.com/nvidia
   - name: harbor
     version: 1.19.1
     repository:
