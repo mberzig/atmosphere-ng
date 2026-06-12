@@ -19,6 +19,7 @@ information to ensure stable and efficient operation of the system.
    integration
    maintenance
    monitoring
+   platform-backups
    pmem
    troubleshooting
    upgrading

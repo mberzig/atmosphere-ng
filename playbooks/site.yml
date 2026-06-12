@@ -29,5 +29,10 @@
   tags:
     - monitoring
 
+- name: Deploy Backup
+  ansible.builtin.import_playbook: vexxhost.atmosphere.backup
+  tags:
+    - backup
+
 - name: Deploy OpenStack
   import_playbook: vexxhost.atmosphere.openstack

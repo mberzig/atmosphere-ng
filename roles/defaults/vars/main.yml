@@ -233,6 +233,9 @@ _atmosphere_images:
   valkey: "{{ atmosphere_image_prefix }}docker.io/bitnamilegacy/valkey:8.0.2-debian-12-r4"
   valkey_sentinel: "{{ atmosphere_image_prefix }}docker.io/bitnamilegacy/valkey-sentinel:8.0.2-debian-12-r4"
   vector: "{{ atmosphere_image_prefix }}docker.io/timberio/vector:0.38.0-debian"
+  velero: "{{ atmosphere_image_prefix }}docker.io/velero/velero:v1.18.1"
+  velero_kubectl: "{{ atmosphere_image_prefix }}registry.k8s.io/kubectl:v1.34.5"
+  velero_plugin_for_aws: "{{ atmosphere_image_prefix }}docker.io/velero/velero-plugin-for-aws:v1.14.1"
 
 atmosphere_images: '{{ _atmosphere_images | combine(atmosphere_image_overrides, recursive=True) }}'
 
