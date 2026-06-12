@@ -48,7 +48,8 @@
 | **E5** | **GPUaaS** | Chart `gpu-operator` v26.3.2 vendoré, rôle `gpu_operator` (MIG mixed, DCGM ServiceMonitor, NFD existant réutilisé), playbook `gpu.yml`, doc `gpu` | EXG-1901..1912 (partiel) | ✅ livré |
 | **E6** | **LLMaaS** | Rôles `vllm` (un serveur OpenAI-compatible par modèle) et `litellm` (passerelle multi-tenant : clés virtuelles, budgets, comptage, zéro rétention des prompts), playbook `llmaas.yml`, doc `llmaas` | EXG-2004, EXG-2009 (cœur) | ✅ livré |
 | **E7a** | **Backups par tier & immutabilité** | Schedules Velero par tier (label `kubecenter.dz/dr-tier`, t1 30 j / t2 14 j, CronJob réconciliateur des namespaces), bucket provisionné avec S3 Object Lock mode compliance (rétention paramétrable) | EXG-020, EXG-803, EXG-1507, T-13 | ✅ livré |
-| **E7** | **Phase ultérieure** | Signature cosign + vérification à l'admission (E4), catalogue curé initial (WordPress, Odoo), modules console, Day-2/AIOps | EXG-17xx, EXG-22xx, reste EXG-21xx | ⏳ planifié |
+| **E7b** | **Supply chain — signature & admission** | Rôle `kyverno` (chart 3.8.1 vendoré, images épinglées), politiques `ClusterPolicy` verifyImages pilotées par `kyverno_verify_images` (clé cosign publique, Enforce, pin par digest), doc de signature du catalogue (cosign sur push Harbor) | EXG-1504, T-12 | ✅ livré |
+| **E7** | **Phase ultérieure** | Catalogue curé initial (WordPress, Odoo), modules console, Day-2/AIOps | EXG-17xx, EXG-22xx, reste EXG-21xx | ⏳ planifié |
 
 Chaque extension livre : rôle(s) + chart(s) vendoré(s), wiring playbook, note de version, documentation, et la mise à jour de la **traçabilité** (exigence `EXG` ↔ livrable ↔ test) dans ce document ou en annexe.
 
