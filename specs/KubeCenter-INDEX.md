@@ -51,7 +51,7 @@ Tous les modules suivent la même fabrication :
    │ (NET)   │    │ (bloc ST)│   │ (VM)    │   │ (GPU)   │    │ Portfolio│
    └────┬────┘    └────┬─────┘   └────┬────┘   └────┬────┘    └────┬─────┘
         │              │              │             │              │
-        │              │   VM ─────────┘ dépend de Storage + Network            
+        │              │   VM ─────────┘ dépend de Storage + Network
         │              │                            │   (Portfolio chapeaute ST)
         │              └──────────── GPU dépend de Network (RoCE) + Storage (poids)
         │                                           │
