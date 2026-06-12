@@ -1,0 +1,8 @@
+---
+features:
+  - |
+    Backup schedules can now be driven by a continuity tier label on the
+    namespaces, with each tier backed by its own schedule and retention. A
+    reconciliation job keeps the namespaces covered by each tier schedule
+    in sync with the labels, so that labeling a namespace is enough to
+    change its backup coverage.

@@ -34,6 +34,11 @@ variables inside your inventory:
   velero_storage_access_key: <access key of the velero user>
   velero_storage_secret_key: <secret key of the velero user>
 
+Alternatively, the bucket can be created automatically with the same
+credentials by setting the ``velero_storage_create_bucket`` variable to
+``true``, which is also the path to use for immutable backups since the
+object lock must be enabled when the bucket is created.
+
 The deployment enables the CSI integration with snapshot data movement, which
 means that the contents of the persistent volumes are uploaded to the object
 storage instead of relying only on Ceph snapshots. This makes the backups
@@ -64,9 +69,58 @@ backup with a shorter retention for a specific set of namespaces:
         includedNamespaces:
           - my-namespace
 
-*******
-Restore
-*******
+**********************
+Tier driven schedules
+**********************
+
+Beyond the static schedules, namespaces can be assigned to a continuity
+tier by labeling them, with each tier backed by its own schedule and
+retention. The default tiers take a daily backup with a 30 day retention
+for the standard tier (``t1``) and a 14 day retention for the continuity
+tier (``t2``), which also relies on the storage replication for its
+recovery point:
+
+.. code-block:: console
+
+  kubectl label namespace <namespace> kubecenter.dz/dr-tier=t1
+
+A reconciliation job runs every 15 minutes and updates the namespaces
+covered by each tier schedule from the labels, so that labeling or
+unlabeling a namespace is enough to change its backup coverage. A tier
+schedule with no labeled namespace is paused instead of backing up
+everything.
+
+The label, the tiers and their retentions can be changed with the
+``velero_tier_label`` and ``velero_tier_schedules`` variables, and the
+reconciliation interval with the ``velero_tier_reconcile_schedule``
+variable.
+
+*****************
+Immutable backups
+*****************
+
+The backups can be made immutable with the S3 Object Lock, which
+prevents anyone from deleting or shortening them before they expire,
+including the administrators and a potential attacker holding their
+credentials. You can enable it by letting the deployment create the
+bucket with the lock enabled:
+
+.. code-block:: yaml
+
+  velero_storage_create_bucket: true
+  velero_storage_object_lock_days: 14
+
+The lock works in compliance mode, so a locked object cannot be removed
+by any user until its retention expires. Keep the lock duration below
+the shortest schedule retention, so that the expired backups can still
+be garbage collected by Velero once their lock has passed.
+
+.. admonition:: Note
+  :class: note
+
+  The object lock can only be enabled when the bucket is created. To
+  protect an existing deployment, create a new locked bucket and point
+  the ``velero_storage_bucket`` variable at it.
 
 You can list the existing backups and restore one of them using the Velero
 CLI from any system with access to the cluster:

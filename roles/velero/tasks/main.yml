@@ -21,3 +21,223 @@
     create_namespace: true
     kubeconfig: "{{ velero_helm_kubeconfig }}"
     values: "{{ _velero_helm_values | combine(velero_helm_values, recursive=True) | to_json }}"
+
+- name: Create bucket credentials secret
+  run_once: true
+  when: velero_storage_create_bucket | bool
+  no_log: true
+  kubernetes.core.k8s:
+    state: present
+    definition:
+      apiVersion: v1
+      kind: Secret
+      metadata:
+        name: velero-bucket-init
+        namespace: "{{ velero_helm_release_namespace }}"
+      stringData:
+        AWS_ACCESS_KEY_ID: "{{ velero_storage_access_key }}"
+        AWS_SECRET_ACCESS_KEY: "{{ velero_storage_secret_key }}"
+
+- name: Create bucket provisioning job
+  run_once: true
+  when: velero_storage_create_bucket | bool
+  kubernetes.core.k8s:
+    state: present
+    force: true
+    definition:
+      apiVersion: batch/v1
+      kind: Job
+      metadata:
+        name: velero-bucket-init
+        namespace: "{{ velero_helm_release_namespace }}"
+      spec:
+        backoffLimit: 6
+        template:
+          spec:
+            restartPolicy: OnFailure
+            containers:
+              - name: aws-cli
+                image: "{{ atmosphere_images['velero_awscli'] | vexxhost.kubernetes.docker_image('ref') }}"
+                envFrom:
+                  - secretRef:
+                      name: velero-bucket-init
+                env:
+                  - name: AWS_DEFAULT_REGION
+                    value: "{{ velero_storage_region }}"
+                  - name: ENDPOINT
+                    value: "{{ velero_storage_url }}"
+                  - name: BUCKET
+                    value: "{{ velero_storage_bucket }}"
+                  - name: LOCK_DAYS
+                    value: "{{ velero_storage_object_lock_days }}"
+                command:
+                  - /bin/sh
+                  - -ec
+                  - |
+                    if ! aws --endpoint-url "$ENDPOINT" s3api head-bucket --bucket "$BUCKET" 2>/dev/null; then
+                        if [ "$LOCK_DAYS" -gt 0 ]; then
+                            aws --endpoint-url "$ENDPOINT" s3api create-bucket --bucket "$BUCKET" --object-lock-enabled-for-bucket
+                        else
+                            aws --endpoint-url "$ENDPOINT" s3api create-bucket --bucket "$BUCKET"
+                        fi
+                    fi
+                    if [ "$LOCK_DAYS" -gt 0 ]; then
+                        aws --endpoint-url "$ENDPOINT" s3api put-object-lock-configuration --bucket "$BUCKET" \
+                            --object-lock-configuration "{\"ObjectLockEnabled\":\"Enabled\",\"Rule\":{\"DefaultRetention\":{\"Mode\":\"COMPLIANCE\",\"Days\":$LOCK_DAYS}}}"
+                    fi
+
+- name: Get existing tier schedules
+  run_once: true
+  kubernetes.core.k8s_info:
+    api_version: velero.io/v1
+    kind: Schedule
+    name: velero-tier-{{ item.key }}
+    namespace: "{{ velero_helm_release_namespace }}"
+  loop: "{{ velero_tier_schedules | dict2items }}"
+  loop_control:
+    label: "{{ item.key }}"
+  register: _velero_tier_schedule_info
+
+- name: Create tier schedules
+  run_once: true
+  when: item.resources | length == 0
+  kubernetes.core.k8s:
+    state: present
+    definition:
+      apiVersion: velero.io/v1
+      kind: Schedule
+      metadata:
+        name: velero-tier-{{ item.item.key }}
+        namespace: "{{ velero_helm_release_namespace }}"
+        labels:
+          app.kubernetes.io/name: velero
+      spec:
+        schedule: "{{ item.item.value.schedule }}"
+        paused: true
+        template:
+          ttl: "{{ item.item.value.ttl }}"
+          includedNamespaces:
+            - velero-tier-placeholder
+  loop: "{{ _velero_tier_schedule_info.results }}"
+  loop_control:
+    label: "{{ item.item.key }}"
+
+- name: Update tier schedules
+  run_once: true
+  kubernetes.core.k8s:
+    state: patched
+    api_version: velero.io/v1
+    kind: Schedule
+    name: velero-tier-{{ item.key }}
+    namespace: "{{ velero_helm_release_namespace }}"
+    definition:
+      spec:
+        schedule: "{{ item.value.schedule }}"
+        template:
+          ttl: "{{ item.value.ttl }}"
+  loop: "{{ velero_tier_schedules | dict2items }}"
+  loop_control:
+    label: "{{ item.key }}"
+
+- name: Create tier reconciler resources
+  run_once: true
+  when: velero_tier_schedules | length > 0
+  kubernetes.core.k8s:
+    state: present
+    definition:
+      - apiVersion: v1
+        kind: ConfigMap
+        metadata:
+          name: velero-tier-reconciler
+          namespace: "{{ velero_helm_release_namespace }}"
+        data:
+          reconcile.sh: "{{ lookup('ansible.builtin.file', 'tier-reconciler.sh') }}"
+
+      - apiVersion: v1
+        kind: ServiceAccount
+        metadata:
+          name: velero-tier-reconciler
+          namespace: "{{ velero_helm_release_namespace }}"
+
+      - apiVersion: rbac.authorization.k8s.io/v1
+        kind: ClusterRole
+        metadata:
+          name: velero-tier-reconciler
+        rules:
+          - apiGroups: [""]
+            resources: ["namespaces"]
+            verbs: ["get", "list"]
+
+      - apiVersion: rbac.authorization.k8s.io/v1
+        kind: ClusterRoleBinding
+        metadata:
+          name: velero-tier-reconciler
+        roleRef:
+          apiGroup: rbac.authorization.k8s.io
+          kind: ClusterRole
+          name: velero-tier-reconciler
+        subjects:
+          - kind: ServiceAccount
+            name: velero-tier-reconciler
+            namespace: "{{ velero_helm_release_namespace }}"
+
+      - apiVersion: rbac.authorization.k8s.io/v1
+        kind: Role
+        metadata:
+          name: velero-tier-reconciler
+          namespace: "{{ velero_helm_release_namespace }}"
+        rules:
+          - apiGroups: ["velero.io"]
+            resources: ["schedules"]
+            verbs: ["get", "list", "patch"]
+
+      - apiVersion: rbac.authorization.k8s.io/v1
+        kind: RoleBinding
+        metadata:
+          name: velero-tier-reconciler
+          namespace: "{{ velero_helm_release_namespace }}"
+        roleRef:
+          apiGroup: rbac.authorization.k8s.io
+          kind: Role
+          name: velero-tier-reconciler
+        subjects:
+          - kind: ServiceAccount
+            name: velero-tier-reconciler
+            namespace: "{{ velero_helm_release_namespace }}"
+
+      - apiVersion: batch/v1
+        kind: CronJob
+        metadata:
+          name: velero-tier-reconciler
+          namespace: "{{ velero_helm_release_namespace }}"
+        spec:
+          schedule: "{{ velero_tier_reconcile_schedule }}"
+          concurrencyPolicy: Forbid
+          successfulJobsHistoryLimit: 1
+          failedJobsHistoryLimit: 3
+          jobTemplate:
+            spec:
+              template:
+                spec:
+                  serviceAccountName: velero-tier-reconciler
+                  restartPolicy: OnFailure
+                  containers:
+                    - name: reconcile
+                      image: "{{ atmosphere_images['velero_tier_reconciler'] | vexxhost.kubernetes.docker_image('ref') }}"
+                      command:
+                        - /bin/sh
+                        - /scripts/reconcile.sh
+                      env:
+                        - name: TIER_LABEL
+                          value: "{{ velero_tier_label }}"
+                        - name: VELERO_NAMESPACE
+                          value: "{{ velero_helm_release_namespace }}"
+                        - name: TIERS
+                          value: "{{ velero_tier_schedules.keys() | join(' ') }}"
+                      volumeMounts:
+                        - name: scripts
+                          mountPath: /scripts
+                  volumes:
+                    - name: scripts
+                      configMap:
+                        name: velero-tier-reconciler
