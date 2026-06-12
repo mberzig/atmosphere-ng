@@ -1,0 +1,9 @@
+---
+features:
+  - |
+    Disaster recovery failover and failback procedures are now available,
+    with the ``dr_failover`` and ``dr_failback`` playbooks promoting and
+    resynchronizing the mirrored RBD pools between the two regions. The
+    playbooks require an explicit confirmation before any destructive step
+    and the documentation now includes step by step runbooks covering the
+    full procedures.
