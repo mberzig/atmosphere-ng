@@ -66,3 +66,52 @@ velero_schedules:
       ttl: 720h
       includedNamespaces:
         - "*"
+
+# Label whose value assigns a namespace to a continuity tier. Every tier
+# defined in "velero_tier_schedules" backs up exactly the namespaces
+# labeled with it, with the list of namespaces reconciled periodically
+# from the labels.
+#
+# velero_tier_label: kubecenter.dz/dr-tier
+velero_tier_label: kubecenter.dz/dr-tier
+
+# Backup schedules per continuity tier, keyed by the value of the tier
+# label. The default tiers take a daily backup with a 30 day retention
+# for the standard tier and a 14 day retention for the continuity tier,
+# which also relies on the storage replication for its recovery point.
+# An empty mapping disables the tier driven schedules.
+#
+# velero_tier_schedules:
+#   t1:
+#     schedule: "0 1 * * *"
+#     ttl: 720h
+velero_tier_schedules:
+  t1:
+    schedule: "0 1 * * *"
+    ttl: 720h
+  t2:
+    schedule: "0 1 * * *"
+    ttl: 336h
+
+# How often the tier labels of the namespaces are reconciled into the
+# tier schedules.
+#
+# velero_tier_reconcile_schedule: "*/15 * * * *"
+velero_tier_reconcile_schedule: "*/15 * * * *"
+
+# Create the backup bucket on the S3 endpoint if it does not exist yet,
+# using the credentials of the backup storage location.
+#
+# velero_storage_create_bucket: true
+velero_storage_create_bucket: false
+
+# Days of S3 Object Lock retention applied in compliance mode to the
+# objects of the bucket, which makes the backups immutable: nobody can
+# delete or shorten them before they expire, not even an administrator.
+# It requires "velero_storage_create_bucket" since the lock must be
+# enabled when the bucket is created, and it must stay below the
+# shortest schedule retention so that the expired backups can be
+# garbage collected. A value of 0 disables the lock.
+#
+# velero_storage_object_lock_days: 14
+velero_storage_object_lock_days: 0

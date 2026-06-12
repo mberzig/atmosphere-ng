@@ -1,0 +1,10 @@
+---
+features:
+  - |
+    The backup bucket can now be created automatically with S3 Object
+    Lock enabled in compliance mode, which makes the backups immutable:
+    nobody can delete or shorten them before they expire, including the
+    administrators. The lock is enabled by setting the
+    ``velero_storage_create_bucket`` variable to ``true`` and the
+    ``velero_storage_object_lock_days`` variable to the retention in
+    days.
