@@ -19,6 +19,7 @@ information to ensure stable and efficient operation of the system.
    disaster-recovery
    disaster-recovery-runbooks
    emulated-tpm
+   gpu
    integration
    maintenance
    monitoring

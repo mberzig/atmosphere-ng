@@ -1,0 +1,8 @@
+---
+features:
+  - |
+    The NVIDIA GPU Operator can now be deployed to make the GPUs of the
+    nodes consumable by the containerized workloads, either as full
+    devices or as MIG instances with the mixed strategy. The feature is
+    disabled by default and can be enabled by setting the
+    ``atmosphere_gpu_operator_enabled`` variable to ``true``.
