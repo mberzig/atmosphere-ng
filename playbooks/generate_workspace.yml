@@ -206,6 +206,7 @@
       #               service type in order to generate the URLs
       vars:
         default_map:
+          harbor_host: "harbor.{{ domain_name }}"
           keycloak_host: "keycloak.{{ domain_name }}"
           kube_prometheus_stack_prometheus_host: "prometheus.{{ domain_name }}"
           kube_prometheus_stack_alertmanager_host: "alertmanager.{{ domain_name }}"
