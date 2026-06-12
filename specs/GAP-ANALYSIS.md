@@ -47,7 +47,8 @@
 | **E4** | **AppStore** | Rôles `harbor` (chart 1.19.1, Trivy embarqué) et `argocd` (chart 9.5.21), playbook `appstore.yml`, doc `appstore` (pipeline de curation, flux 100 % GitOps) | EXG-2101..2107 (fondation) | ✅ livré |
 | **E5** | **GPUaaS** | Chart `gpu-operator` v26.3.2 vendoré, rôle `gpu_operator` (MIG mixed, DCGM ServiceMonitor, NFD existant réutilisé), playbook `gpu.yml`, doc `gpu` | EXG-1901..1912 (partiel) | ✅ livré |
 | **E6** | **LLMaaS** | Rôles `vllm` (un serveur OpenAI-compatible par modèle) et `litellm` (passerelle multi-tenant : clés virtuelles, budgets, comptage, zéro rétention des prompts), playbook `llmaas.yml`, doc `llmaas` | EXG-2004, EXG-2009 (cœur) | ✅ livré |
-| **E7** | **Phase ultérieure** | Signature cosign + vérification à l'admission (E4), catalogue curé initial (WordPress, Odoo), schedules Velero pilotés par tier/labels, Object Lock backups, modules console, Day-2/AIOps | EXG-17xx, EXG-22xx, reste EXG-21xx | ⏳ planifié |
+| **E7a** | **Backups par tier & immutabilité** | Schedules Velero par tier (label `kubecenter.dz/dr-tier`, t1 30 j / t2 14 j, CronJob réconciliateur des namespaces), bucket provisionné avec S3 Object Lock mode compliance (rétention paramétrable) | EXG-020, EXG-803, EXG-1507, T-13 | ✅ livré |
+| **E7** | **Phase ultérieure** | Signature cosign + vérification à l'admission (E4), catalogue curé initial (WordPress, Odoo), modules console, Day-2/AIOps | EXG-17xx, EXG-22xx, reste EXG-21xx | ⏳ planifié |
 
 Chaque extension livre : rôle(s) + chart(s) vendoré(s), wiring playbook, note de version, documentation, et la mise à jour de la **traçabilité** (exigence `EXG` ↔ livrable ↔ test) dans ce document ou en annexe.
 
