@@ -1,0 +1,89 @@
+# Copyright (c) 2026 Mohamed Berzig
+#
+# Licensed under the Apache License, Version 2.0 (the "License"); you may
+# not use this file except in compliance with the License. You may obtain
+# a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+# WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+# License for the specific language governing permissions and limitations
+# under the License.
+
+# Kubernetes namespace where the Rook object multisite resources are
+# created, which must be the namespace of the Rook Ceph cluster.
+#
+# ceph_rgw_multisite_namespace: openstack
+ceph_rgw_multisite_namespace: "{{ rook_ceph_cluster_helm_release_namespace | default('openstack') }}"
+
+# Name of the realm shared between the two regions.
+#
+# ceph_rgw_multisite_realm: atmosphere
+ceph_rgw_multisite_realm: atmosphere
+
+# Name of the zone group shared between the two regions.
+#
+# ceph_rgw_multisite_zonegroup: atmosphere
+ceph_rgw_multisite_zonegroup: atmosphere
+
+# Name of the zone hosted by this region, which must be different in each
+# region.
+#
+# ceph_rgw_multisite_zone: primary
+ceph_rgw_multisite_zone: primary
+
+# Whether this region hosts the master zone of the realm.  The secondary
+# region must set this to false and provide the pull endpoint and the
+# realm keys below.
+#
+# ceph_rgw_multisite_master: false
+ceph_rgw_multisite_master: true
+
+# Endpoints of the local zone which are reachable from the other region,
+# used by the peer zone to synchronize. This is usually the public
+# endpoint of the object store of this region.
+#
+# ceph_rgw_multisite_endpoints:
+#   - https://object-store.region-a.example.com
+ceph_rgw_multisite_endpoints: []
+
+# Endpoint of the master zone used to pull the realm, required when this
+# region does not host the master zone.
+#
+# ceph_rgw_multisite_pull_endpoint: https://object-store.region-a.example.com
+ceph_rgw_multisite_pull_endpoint: ""
+
+# Access and secret keys of the realm system user, required when this
+# region does not host the master zone. They are stored in the
+# "<realm>-keys" secret of the region hosting the master zone.
+#
+# ceph_rgw_multisite_access_key: <access key>
+ceph_rgw_multisite_access_key: ""
+
+# ceph_rgw_multisite_secret_key: <secret key>
+ceph_rgw_multisite_secret_key: ""
+
+# Pool settings backing the metadata pools of the zone.
+#
+# ceph_rgw_multisite_metadata_pool:
+#   failureDomain: host
+#   replicated:
+#     size: 3
+ceph_rgw_multisite_metadata_pool:
+  failureDomain: host
+  replicated:
+    size: 3
+
+# Pool settings backing the data pool of the zone.
+#
+# ceph_rgw_multisite_data_pool:
+#   failureDomain: host
+#   erasureCoded:
+#     dataChunks: 2
+#     codingChunks: 1
+ceph_rgw_multisite_data_pool:
+  failureDomain: host
+  replicated:
+    size: 3

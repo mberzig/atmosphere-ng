@@ -80,6 +80,59 @@ of images per state:
 
   cephadm shell -- rbd mirror pool status volumes-dr --verbose
 
+**************************
+Object storage replication
+**************************
+
+The objects stored in the RadosGW of a region, such as the platform backups
+taken by Velero, can be replicated to the other region with the RadosGW
+multisite feature, where both regions host a zone of a shared zone group
+and realm.
+
+On the region hosting the master zone, you can enable the feature by
+setting the following variables inside your inventory, where the endpoints
+must be reachable from the other region:
+
+.. code-block:: yaml
+
+  atmosphere_rgw_multisite_enabled: true
+  ceph_rgw_multisite_zone: primary
+  ceph_rgw_multisite_endpoints:
+    - https://object-store.region-a.example.com
+
+Once deployed, you can retrieve the keys of the realm system user from the
+``atmosphere-keys`` secret (named after the realm) and provide them to the
+inventory of the secondary region:
+
+.. code-block:: yaml
+
+  atmosphere_rgw_multisite_enabled: true
+  ceph_rgw_multisite_master: false
+  ceph_rgw_multisite_zone: secondary
+  ceph_rgw_multisite_endpoints:
+    - https://object-store.region-b.example.com
+  ceph_rgw_multisite_pull_endpoint: https://object-store.region-a.example.com
+  ceph_rgw_multisite_access_key: <access key from the atmosphere-keys secret>
+  ceph_rgw_multisite_secret_key: <secret key from the atmosphere-keys secret>
+
+On both regions, the object store managed by the Rook Ceph cluster role
+must be attached to the local zone, which you can do by setting the
+following variable inside your inventory (with the pools then managed by
+the zone resource instead of the object store):
+
+.. code-block:: yaml
+
+  rook_ceph_cluster_radosgw_spec:
+    zone:
+      name: primary
+
+You can verify the synchronization status of the zones with the RadosGW
+administration tooling:
+
+.. code-block:: console
+
+  cephadm shell -- radosgw-admin sync status
+
 ********
 Failover
 ********

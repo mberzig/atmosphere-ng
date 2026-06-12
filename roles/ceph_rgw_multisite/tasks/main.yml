@@ -1,0 +1,90 @@
+# Copyright (c) 2026 Mohamed Berzig
+#
+# Licensed under the Apache License, Version 2.0 (the "License"); you may
+# not use this file except in compliance with the License. You may obtain
+# a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+# WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+# License for the specific language governing permissions and limitations
+# under the License.
+
+- name: Assert that the pull configuration is provided
+  run_once: true
+  ansible.builtin.assert:
+    that:
+      - ceph_rgw_multisite_pull_endpoint | length > 0
+      - ceph_rgw_multisite_access_key | length > 0
+      - ceph_rgw_multisite_secret_key | length > 0
+    fail_msg: >-
+      The "ceph_rgw_multisite_pull_endpoint", "ceph_rgw_multisite_access_key"
+      and "ceph_rgw_multisite_secret_key" variables are required when the
+      region does not host the master zone.
+    quiet: true
+  when: not ceph_rgw_multisite_master | bool
+
+- name: Create realm keys secret
+  run_once: true
+  when: not ceph_rgw_multisite_master | bool
+  no_log: true
+  kubernetes.core.k8s:
+    state: present
+    definition:
+      apiVersion: v1
+      kind: Secret
+      metadata:
+        name: "{{ ceph_rgw_multisite_realm }}-keys"
+        namespace: "{{ ceph_rgw_multisite_namespace }}"
+      stringData:
+        access-key: "{{ ceph_rgw_multisite_access_key }}"
+        secret-key: "{{ ceph_rgw_multisite_secret_key }}"
+
+- name: Create object realm
+  run_once: true
+  kubernetes.core.k8s:
+    state: present
+    definition:
+      apiVersion: ceph.rook.io/v1
+      kind: CephObjectRealm
+      metadata:
+        name: "{{ ceph_rgw_multisite_realm }}"
+        namespace: "{{ ceph_rgw_multisite_namespace }}"
+      spec: >-
+        {{
+          {}
+          if ceph_rgw_multisite_master | bool
+          else {'pull': {'endpoint': ceph_rgw_multisite_pull_endpoint}}
+        }}
+
+- name: Create object zone group
+  run_once: true
+  kubernetes.core.k8s:
+    state: present
+    definition:
+      apiVersion: ceph.rook.io/v1
+      kind: CephObjectZoneGroup
+      metadata:
+        name: "{{ ceph_rgw_multisite_zonegroup }}"
+        namespace: "{{ ceph_rgw_multisite_namespace }}"
+      spec:
+        realm: "{{ ceph_rgw_multisite_realm }}"
+
+- name: Create object zone
+  run_once: true
+  kubernetes.core.k8s:
+    state: present
+    definition:
+      apiVersion: ceph.rook.io/v1
+      kind: CephObjectZone
+      metadata:
+        name: "{{ ceph_rgw_multisite_zone }}"
+        namespace: "{{ ceph_rgw_multisite_namespace }}"
+      spec:
+        zoneGroup: "{{ ceph_rgw_multisite_zonegroup }}"
+        metadataPool: "{{ ceph_rgw_multisite_metadata_pool }}"
+        dataPool: "{{ ceph_rgw_multisite_data_pool }}"
+        customEndpoints: "{{ ceph_rgw_multisite_endpoints }}"
+        preservePoolsOnDelete: true
