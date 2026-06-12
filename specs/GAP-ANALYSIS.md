@@ -39,15 +39,15 @@
 
 ## 3. Feuille de route des extensions (ordre de dépendance)
 
-| ID | Extension | Contenu | Exigences couvertes (princ.) |
-|---|---|---|---|
-| **E1** | **Backup plateforme — Velero** | Chart `velero` vendoré, rôle `velero` (node-agent, CSI, BSL S3/RGW), schedules par tier DR, playbook `backup.yml`, doc admin | EXG-801..805 (transposé), EXG-STO-sauvegarde |
-| **E2** | **PRA données — réplication** | Mirroring RBD (CephRBDMirror Rook, pools `*-dr`), RGW multisite (realm/zonegroup/zones), métriques + alertes de lag | EXG-301..307, EXG-ST-#### DR |
-| **E3** | **PRA orchestration** | Playbooks failover/failback semi-automatiques (go/no-go), runbooks markdown, bascule DNS Designate, export volumes↔images RBD | EXG-901..906, T-09/T-10 |
-| **E4** | **AppStore** | Harbor (registre + scan Trivy + signature), ArgoCD, catalogue curé de charts, flux 100 % GitOps | EXG-2101..2107, EXG-APP-#### |
-| **E5** | **GPUaaS** | Rôle `gpu_operator` (driver, MIG manager, DCGM, toolkit), intégration NFD existant, flavors Nova passthrough documentés | EXG-1901..1912, EXG-GPU-#### |
-| **E6** | **LLMaaS** | vLLM (serving), LiteLLM (passerelle multi-tenant, clés, quotas tokens), catalogue de modèles | EXG-2001..2011, EXG-LLM-#### |
-| **E7** | **Phase ultérieure** | Modules console (backup/PRA self-service), Day-2/AIOps | EXG-17xx, EXG-22xx |
+| ID | Extension | Contenu livré | Exigences couvertes (princ.) | Statut |
+|---|---|---|---|---|
+| **E1** | **Backup plateforme — Velero** | Chart `velero` 12.0.2 vendoré, rôle `velero` (node-agent, CSI + data mover, BSL S3/RGW), schedules, playbook `backup.yml`, doc `platform-backups` | EXG-801..805 (transposé) | ✅ livré |
+| **E2** | **PRA données — réplication** | Rôle `ceph_rbd_mirror` (orch cephadm, peers bootstrap, schedules snapshot, script santé), rôle `ceph_rgw_multisite` (CRs Rook realm/zonegroup/zone), playbook `dr.yml`, doc `disaster-recovery` | EXG-301..307 | ✅ livré |
+| **E3** | **PRA orchestration** | Playbooks `dr_failover`/`dr_failback` semi-automatiques (confirmations explicites), runbooks `disaster-recovery-runbooks` (failover, failback, restauration tenant, adoption Cinder, bascule DNS) | EXG-901..906, T-09/T-10 | ✅ livré |
+| **E4** | **AppStore** | Rôles `harbor` (chart 1.19.1, Trivy embarqué) et `argocd` (chart 9.5.21), playbook `appstore.yml`, doc `appstore` (pipeline de curation, flux 100 % GitOps) | EXG-2101..2107 (fondation) | ✅ livré |
+| **E5** | **GPUaaS** | Chart `gpu-operator` v26.3.2 vendoré, rôle `gpu_operator` (MIG mixed, DCGM ServiceMonitor, NFD existant réutilisé), playbook `gpu.yml`, doc `gpu` | EXG-1901..1912 (partiel) | ✅ livré |
+| **E6** | **LLMaaS** | Rôles `vllm` (un serveur OpenAI-compatible par modèle) et `litellm` (passerelle multi-tenant : clés virtuelles, budgets, comptage, zéro rétention des prompts), playbook `llmaas.yml`, doc `llmaas` | EXG-2004, EXG-2009 (cœur) | ✅ livré |
+| **E7** | **Phase ultérieure** | Signature cosign + vérification à l'admission (E4), catalogue curé initial (WordPress, Odoo), schedules Velero pilotés par tier/labels, Object Lock backups, modules console, Day-2/AIOps | EXG-17xx, EXG-22xx, reste EXG-21xx | ⏳ planifié |
 
 Chaque extension livre : rôle(s) + chart(s) vendoré(s), wiring playbook, note de version, documentation, et la mise à jour de la **traçabilité** (exigence `EXG` ↔ livrable ↔ test) dans ce document ou en annexe.
 
