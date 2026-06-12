@@ -1,0 +1,9 @@
+---
+features:
+  - |
+    RBD pools can now be replicated towards the Ceph cluster of a second
+    region using snapshot-based mirroring, which provides the data
+    replication layer for disaster recovery. The feature is disabled by
+    default and can be enabled by setting the ``atmosphere_rbd_mirror_enabled``
+    variable to ``true``, with the mirrored pools and their snapshot
+    intervals listed in the ``ceph_rbd_mirror_pools`` variable.

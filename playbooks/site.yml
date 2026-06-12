@@ -36,3 +36,8 @@
 
 - name: Deploy OpenStack
   import_playbook: vexxhost.atmosphere.openstack
+
+- name: Configure Disaster Recovery
+  ansible.builtin.import_playbook: vexxhost.atmosphere.dr
+  tags:
+    - dr
