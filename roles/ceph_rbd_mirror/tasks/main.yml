@@ -56,10 +56,13 @@
 - name: Create peer bootstrap tokens
   run_once: true
   ansible.builtin.shell:
+    # NOTE: cephadm shell prints banner lines (Inferring fsid...) on stdout
+    # before the token, so keep only the base64 token line.
     cmd: >-
       cephadm shell -- rbd mirror pool peer bootstrap create
       {% if ceph_rbd_mirror_site_name %}--site-name {{ ceph_rbd_mirror_site_name }}{% endif %}
-      {{ item.name }} > /etc/ceph/rbd-mirror-peer-{{ item.name }}.token
+      {{ item.name }} | grep -E '^[A-Za-z0-9+/=]{40,}$' | tail -1
+      > /etc/ceph/rbd-mirror-peer-{{ item.name }}.token
     creates: /etc/ceph/rbd-mirror-peer-{{ item.name }}.token
   when: ceph_rbd_mirror_bootstrap_create | bool
   loop: "{{ ceph_rbd_mirror_pools }}"
