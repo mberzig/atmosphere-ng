@@ -69,7 +69,7 @@
                   - name: BUCKET
                     value: "{{ velero_storage_bucket }}"
                   - name: LOCK_DAYS
-                    value: "{{ velero_storage_object_lock_days }}"
+                    value: "{{ velero_storage_object_lock_days | string }}"
                 command:
                   - /bin/sh
                   - -ec
