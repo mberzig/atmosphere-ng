@@ -90,6 +90,40 @@ revalidées sur cette base stable.
   systématiquement aux objets sur le RGW Ceph 18.2.8 ; le mécanisme
   d'Object Lock (rétention explicite) est lui pleinement appliqué.
 
+### E3 — Bascule / retour PRA (failover + failback RBD) sur 7.6.0 : **PASS (plan de données)**
+Validation du cœur de `dr_failover.yml` / `dr_failback.yml` : la
+promotion/rétrogradation RBD qui rend un volume répliqué inscriptible au
+site PRA, puis le rétablissement nominal. Image témoin
+`volumes-dr/dr-test-vol` (`global_id` c109b02b…), peering region1↔region2
+établi (cf. E2).
+
+**Bascule (region1 → region2), anti-split-brain :**
+- region1 (primaire) → `rbd mirror image demote` → « Image demoted to
+  non-primary ».
+- region2 → `rbd mirror image promote` → « Image promoted to primary »,
+  `rbd info` ⇒ `mirroring primary: true`.
+- Écriture de validation sur region2 (`rbd bench`, 4 K × 256) →
+  **2782 ops/s, 11 MiB/s** : le volume est inscriptible au site PRA
+  (preuve qu'une VM pourrait y démarrer sur ce disque).
+
+**Retour (region2 → region1) :**
+- region2 → `demote` → « Image demoted to non-primary ».
+- region1 → `promote` → « Image promoted to primary »,
+  `mirroring primary: true` (retour au primaire d'origine).
+- Écriture nominale sur region1 (`rbd bench`) → **4266 ops/s, 17 MiB/s**.
+- Snapshot de mirroring déclenché sur region1 (Snapshot ID 13).
+- À region2 : l'image repasse **`up+replaying`** (secondaire qui suit
+  region1), `last_snapshot_bytes: 1048576` (le 1 Mio écrit pendant le
+  retour est bien répliqué vers region2), `replay_state: idle` (à jour),
+  region1 `local image is primary`. **Aucun split-brain.**
+- Verdict : cycle complet bascule + retour fonctionnel au niveau du plan
+  de données Ceph, réplication bidirectionnelle confirmée. Le volet
+  OpenStack des `dr_failover/failback.yml` (Cinder `manage`/`unmanage`,
+  bascule DNS Designate) n'est pas exécuté ici : seule region1 dispose
+  d'un OpenStack complet sur le lab (region2 = cible Ceph/PRA). Le
+  mécanisme déterminant — rendre la donnée répliquée inscriptible au PRA
+  et la ramener — est validé.
+
 ## Synthèse validation sur stable 7.6.0
 | Extension | Verdict |
 |---|---|
@@ -98,7 +132,7 @@ revalidées sur cette base stable.
 | E4 Kyverno cosign (T-12 enforcement) | ✅ PASS |
 | E7a schedules par tier | ✅ PASS |
 | E7b immutabilité Object Lock (T-13) | ✅ PASS |
-| E3 failover/failback | nécessite le réseau OpenStack des deux régions |
+| E3 failover/failback (plan de données RBD) | ✅ PASS (cephadm ; volet OpenStack non rejouable, region2 = cible PRA seule) |
 | E5 GPUaaS / E6 LLMaaS | non testables (pas de GPU sur le lab) |
 
 *Mis à jour au fil des tests.*
