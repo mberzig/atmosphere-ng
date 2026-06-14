@@ -86,7 +86,11 @@
   retries: 120
   delay: 5
   until:
-    - _keycloak_sts.resources[0].status.replicas == _keycloak_sts.resources[0].status.readyReplicas
+    # NOTE: readyReplicas is absent from the status until at least one pod is
+    # ready, so default it to 0 to keep retrying instead of erroring on the
+    # missing attribute (the StatefulSet stays not-ready while Keycloak runs
+    # its initial database migration, which can exceed the probe grace).
+    - (_keycloak_sts.resources[0].status.readyReplicas | default(0)) == (_keycloak_sts.resources[0].spec.replicas | default(1))
 
 - name: Create Keycloak Ingress
   ansible.builtin.include_role:
