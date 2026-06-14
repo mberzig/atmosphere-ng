@@ -13,6 +13,13 @@
 # under the License.
 
 __neutron_helm_values:
+  # NOTE: render the keystone and rabbit bootstrap jobs as regular
+  # resources rather than post-upgrade helm hooks. With hooks the jobs
+  # only run after the helm "--wait" succeeds, but neutron-server waits
+  # for those jobs to complete before becoming ready, which deadlocks the
+  # wait. As regular resources the jobs run before the wait, unblocking
+  # neutron-server.
+  helm3_hook: false
   endpoints: "{{ openstack_helm_endpoints }}"
   images:
     tags: "{{ atmosphere_images | vexxhost.atmosphere.openstack_helm_image_tags('neutron') }}"
