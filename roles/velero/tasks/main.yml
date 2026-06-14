@@ -38,12 +38,22 @@
         AWS_ACCESS_KEY_ID: "{{ velero_storage_access_key }}"
         AWS_SECRET_ACCESS_KEY: "{{ velero_storage_secret_key }}"
 
+- name: Remove any previous bucket provisioning job
+  run_once: true
+  when: velero_storage_create_bucket | bool
+  kubernetes.core.k8s:
+    state: absent
+    api_version: batch/v1
+    kind: Job
+    name: velero-bucket-init
+    namespace: "{{ velero_helm_release_namespace }}"
+    wait: true
+
 - name: Create bucket provisioning job
   run_once: true
   when: velero_storage_create_bucket | bool
   kubernetes.core.k8s:
     state: present
-    force: true
     definition:
       apiVersion: batch/v1
       kind: Job
