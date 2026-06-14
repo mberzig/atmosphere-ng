@@ -124,6 +124,66 @@ site PRA, puis le rétablissement nominal. Image témoin
   mécanisme déterminant — rendre la donnée répliquée inscriptible au PRA
   et la ramener — est validé.
 
+## Drill PCA/PRA sur VMs réelles — déploiement region2 + bascule applicative
+
+Objectif : aller au-delà du plan de données (E3) et rejouer le volet
+OpenStack avec de **vraies VMs** : déployer un OpenStack complet à region2
+(cible PRA), créer une VM tenant à region1, basculer, la redémarrer à
+region2.
+
+### Déploiement OpenStack region2 (cible PRA) : **FAIT (cœur)**
+region2 (1 contrôleur + 2 computes) avait déjà k8s + Ceph (cephadm) ; le
+volet OpenStack avait échoué sur keycloak. Repris et mené à bien :
+- **Keycloak** : la migration liquibase initiale avait laissé un schéma
+  à moitié migré (`RESOURCE_SERVER_PERM_TICKET already exists`,
+  CrashLoopBackOff ×263) → réinitialisation propre de la base `keycloak`
+  (drop/create), keycloak migre et passe `Ready`.
+- **Bug corrigé** (`fix(keycloak)`) : la tâche « Wait until keycloak
+  ready » comparait `status.replicas` à `status.readyReplicas` ;
+  `readyReplicas` est absent tant qu'aucun pod n'est prêt → la condition
+  *plantait* (`dict object has no attribute readyReplicas`) au lieu de
+  ré-essayer, faisant échouer le déploiement sur une migration lente.
+  Corrigé par `default(0)` vs `spec.replicas`.
+- Résultat : **keystone, glance, cinder, placement, nova (compute API
+  ready + flavors), neutron (network service ready + réseaux créés)**
+  déployés à region2. Seul `heat` (rabbitmq-heat) a timeout (pression
+  ressources) — non requis pour le drill.
+
+### Bascule applicative avec VM réelle : **BLOQUÉ — limite de capacité du lab**
+Le drill nécessite un plan de contrôle OpenStack **stable** dans les deux
+régions simultanément. Constat factuel :
+- **Les deux régions renvoient keystone `HTTP 500`** : le tier base de
+  données (Percona/Galera + haproxy) ne tient pas. À region1, le cluster
+  Galera a perdu son Primary Component (mysqld up mais port 3306 fermé,
+  `safe_to_bootstrap: 0` partout), récupéré via la recovery de l'opérateur
+  (bootstrap depuis le nœud le plus avancé, `seqno 56056`) — puis
+  **re-effondré** : pxc-2 bloqué en `Terminating`, haproxy jamais `Ready`
+  (clustercheck KO), aucun endpoint pour `percona-xtradb-haproxy`.
+- **Cause racine : sur-engagement de l'hôte physique CERIST partagé.**
+  Charge **load average 666** observée pendant le SST Galera + le
+  déploiement region2 concurrent ; un OOMKill (exit 137) sur un nœud pxc.
+  Même après retour au calme (load ~12, **9 min sans sollicitation**), le
+  tier DB ne se rétablit pas. L'hôte ne soutient pas un plan de contrôle
+  HA OpenStack complet — *a fortiori* deux en parallèle.
+- **Effet de bord corrigé** : la politique Kyverno (E4) utilise
+  `failurePolicy: Fail` ; quand les pods Kyverno meurent sous la pression,
+  leur webhook d'admission **bloque toutes les opérations pods du cluster**
+  — y compris le redémarrage de Kyverno lui-même (auto-blocage). Webhooks
+  repassés en `Ignore` pour débloquer. Anti-pattern de résilience à
+  corriger dans le rôle (cf. [[kyverno-failurepolicy-deadlock]]).
+
+**Verdict honnête** : le déploiement region2 (la fonction « cible PRA »)
+est livré ; le **mécanisme déterminant** du PRA (bascule du plan de
+données RBD, E1/E2/E3) reste validé et ne dépend pas du plan de contrôle
+lourd. La bascule applicative avec VM réelle de bout en bout **n'est pas
+démontrable sur la capacité actuelle du lab** (limite d'infrastructure,
+pas un défaut logiciel). Pour la rejouer : dimensionner les VM du plan de
+contrôle (RAM/CPU), réduire les replicas HA (Galera/RabbitMQ/neutron) ou
+opérer région par région ; puis : VM bootée sur volume Cinder
+(`cinder.volumes`, mirroré vers region2) → `dr_failover.yml` (promote RBD
++ `cinder manage` + boot region2) → vérification d'un témoin écrit dans
+le volume.
+
 ## Synthèse validation sur stable 7.6.0
 | Extension | Verdict |
 |---|---|
@@ -133,6 +193,8 @@ site PRA, puis le rétablissement nominal. Image témoin
 | E7a schedules par tier | ✅ PASS |
 | E7b immutabilité Object Lock (T-13) | ✅ PASS |
 | E3 failover/failback (plan de données RBD) | ✅ PASS (cephadm ; volet OpenStack non rejouable, region2 = cible PRA seule) |
+| Déploiement OpenStack region2 (cible PRA) | ✅ FAIT (cœur ; heat exclu) |
+| Bascule applicative VM réelle (2 régions) | ⛔ bloqué — capacité lab (plan de contrôle DB instable, les 2 régions) |
 | E5 GPUaaS / E6 LLMaaS | non testables (pas de GPU sur le lab) |
 
 *Mis à jour au fil des tests.*
