@@ -71,9 +71,34 @@ revalidées sur cette base stable.
   autonome (`ceph orch apply rgw`) pour le test E1. À investiguer côté
   rôle `rook_ceph_cluster` (recréation de la CephObjectStore).
 
-## Reste à tester
-## E7a — Schedules par tier · E7b — Immutabilité Object Lock
-## E2 — RBD mirror sur 7.6.0 (déjà validé au niveau cephadm)
-## E3 — Failover/failback (nécessite le réseau OpenStack des deux régions)
+### E7a — Schedules par tier sur 7.6.0 : **PASS**
+- Schedules `velero-tier-t1`/`t2` + CronJob réconciliateur déployés ;
+  schedules en `paused=true` à vide (correct).
+- Namespace `tier-test` labellisé `kubecenter.dz/dr-tier=t1` + réconciliateur
+  déclenché → `velero-tier-t1` passe `paused=false` et
+  `includedNamespaces: ["tier-test"]` (le namespace labellisé est couvert).
+- Garde-fou : retrait du label + réconciliateur → schedule repasse
+  `paused=true` (pas de fallback « tout sauvegarder » sur sélecteur vide).
+
+### E7b — Immutabilité Object Lock sur 7.6.0 : **PASS (T-13)**
+- Bucket créé avec Object Lock + versioning activés + rétention par défaut
+  COMPLIANCE.
+- Objet écrit avec rétention COMPLIANCE → `get-object-retention` = COMPLIANCE.
+- Suppression de version tentée → **`AccessDenied`**, l'objet survit
+  (immutabilité garantie).
+- Nuance : la rétention par défaut du bucket ne s'auto-applique pas
+  systématiquement aux objets sur le RGW Ceph 18.2.8 ; le mécanisme
+  d'Object Lock (rétention explicite) est lui pleinement appliqué.
+
+## Synthèse validation sur stable 7.6.0
+| Extension | Verdict |
+|---|---|
+| E1 Velero (backup/restore) | ✅ PASS |
+| E2 RBD mirror (region1→region2) | ✅ PASS (cephadm) |
+| E4 Kyverno cosign (T-12 enforcement) | ✅ PASS |
+| E7a schedules par tier | ✅ PASS |
+| E7b immutabilité Object Lock (T-13) | ✅ PASS |
+| E3 failover/failback | nécessite le réseau OpenStack des deux régions |
+| E5 GPUaaS / E6 LLMaaS | non testables (pas de GPU sur le lab) |
 
 *Mis à jour au fil des tests.*
