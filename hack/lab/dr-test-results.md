@@ -172,17 +172,37 @@ régions simultanément. Constat factuel :
   repassés en `Ignore` pour débloquer. Anti-pattern de résilience à
   corriger dans le rôle (cf. [[kyverno-failurepolicy-deadlock]]).
 
+**Tentative d'allègement du plan de contrôle (à la demande).** Pour tenter
+de stabiliser keystone, deux approches ont été essayées :
+1. **Galera 3→1** (`spec.pxc.size: 1` + `unsafeFlags.pxcSize`) : l'opérateur
+   Percona **refuse de scaler un cluster non sain** (il attend un état Ready
+   qu'il n'atteint jamais) → reste bloqué ; les conteneurs pxc *cyclent*
+   (`cannot exec in a stopped container`) sous pression mémoire (un OOMKill
+   constaté, pas de limite mémoire sur le conteneur = OOM niveau nœud).
+2. **Bypass haproxy** (repointer le Service `percona-xtradb-haproxy` vers les
+   pods pxc sains) : à region2 les nœuds pxc-0/1 sont `2/2` (0 restart,
+   quorum Primary), mais keystone **hang quand même** sur l'émission de
+   token — y compris en interne au pod (POST `/v3/auth/tokens` → timeout
+   35 s). Cause : les nœuds PXC attendent l'en-tête **proxy-protocol** que
+   haproxy ajoute normalement, et/ou le chemin de requête mysqld est saturé
+   (IO/CPU). Réduire le nombre de replicas **ne corrige pas** la latence
+   *par requête* sur un nœud affamé.
+
 **Verdict honnête** : le déploiement region2 (la fonction « cible PRA »)
 est livré ; le **mécanisme déterminant** du PRA (bascule du plan de
 données RBD, E1/E2/E3) reste validé et ne dépend pas du plan de contrôle
 lourd. La bascule applicative avec VM réelle de bout en bout **n'est pas
-démontrable sur la capacité actuelle du lab** (limite d'infrastructure,
-pas un défaut logiciel). Pour la rejouer : dimensionner les VM du plan de
-contrôle (RAM/CPU), réduire les replicas HA (Galera/RabbitMQ/neutron) ou
-opérer région par région ; puis : VM bootée sur volume Cinder
-(`cinder.volumes`, mirroré vers region2) → `dr_failover.yml` (promote RBD
-+ `cinder manage` + boot region2) → vérification d'un témoin écrit dans
-le volume.
+démontrable sur la capacité actuelle du lab** : le tier base de données
+(Percona/Galera) ne sert pas les requêtes de façon fiable dans **les deux**
+régions, et l'allègement par réduction de replicas ne le résout pas (c'est
+une famine de ressources CPU/IO, pas un problème de compte de replicas).
+C'est une **limite d'infrastructure, pas un défaut logiciel** — Atmosphere
+se déploie correctement. Pour rejouer le drill, il faut **du matériel** :
+VM de plan de contrôle dimensionnées (RAM/CPU/IO), idéalement des nœuds DB
+dédiés, ou un lab à une seule région à la fois. Le protocole reste : VM
+bootée sur volume Cinder (`cinder.volumes`, mirroré vers region2) →
+`dr_failover.yml` (promote RBD + `cinder manage` + boot region2) →
+vérification d'un témoin écrit dans le volume.
 
 ## Synthèse validation sur stable 7.6.0
 | Extension | Verdict |
